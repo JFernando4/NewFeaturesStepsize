@@ -27,7 +27,7 @@ MIDPOINT = 100000               # number of iterations for first phase of traini
 ADD_FEATURE_INTERVAL = 1000     # number of iterations before adding another feature when 'continuously_add_bad'
 CHECKPOINT = 1000               # how often store the mean squared error
 STEPSIZE_GROWTH_FACTOR = 10     # how much to increase or decrease the stepsize for sgd
-DEBUG = True
+DEBUG = False
 
 
 class Experiment:
@@ -98,7 +98,7 @@ class Experiment:
             reward_per_step = np.zeros((self.sample_size, TRAINING_DATA_SIZE), dtype=np.int8)
             diverging_runs = np.zeros(self.sample_size, dtype=np.int8)
             action_counter = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
-                                        self.num_actions), dtype=np.int8)
+                                       self.num_actions), dtype=np.int32)
             weight_sum_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
                                                   self.num_actions, self.config.max_num_features), dtype=np.float64)
             # For keeping track of stepsizes
@@ -158,10 +158,10 @@ class Experiment:
                     # update state information and progress
                     curr_obs_feats = next_obs_feats
                     reward_per_step[i][j] += np.int8(r)
-                    action_counter[i][curr_checkpoint][curr_a] += np.int8(1)
-                    weight_sum_per_checkpoint[i][curr_checkpoint][curr_a] += new_weights
+                    action_counter[i][curr_checkpoint][curr_a] += np.int32(1)
+                    weight_sum_per_checkpoint[i][curr_checkpoint][curr_a][:new_weights.size] += new_weights
                     if self.method != 'sgd':
-                        stepsize_sum_per_checkpoint[i][curr_checkpoint][curr_a] += ss
+                        stepsize_sum_per_checkpoint[i][curr_checkpoint][curr_a][:ss.size] += ss
 
                     # handle cases where weights diverge
                     if np.sum(np.isnan(new_weights)) > 0 or np.sum(np.isinf(new_weights)) > 0:
@@ -190,7 +190,7 @@ class Experiment:
                                      'action_counter': action_counter,
                                      'weight_sum_per_checkpoint': weight_sum_per_checkpoint}
             if self.method != 'sgd':
-                results_dir['stepsize_sum_per_checkpoint'] = stepsize_sum_per_checkpoint
+                results_dir[names[a]]['stepsize_sum_per_checkpoint'] = stepsize_sum_per_checkpoint
 
             if DEBUG:
                 agg_results = np.average(reward_per_step, axis=0)
@@ -315,7 +315,8 @@ def main():
                             choices=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                      'add_5_good_100_bad', 'continuously_add_bad', 'continuously_add_random'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
-                        choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd'])
+                        choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd',
+                                 'slow_adam'])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
