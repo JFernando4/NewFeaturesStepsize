@@ -81,9 +81,10 @@ class Experiment:
         for a, alpha in enumerate(alphas):
             self._print("Currently working on: {0}".format(names[a]))
             sample_msve_per_run = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT), dtype=np.float64)
-            if self.method != 'sgd':
-                stepsizes = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT, self.config.max_num_features),
-                                     dtype=np.float64)
+            average_weight_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                                                      self.config.max_num_features), dtype=np.float64)
+            average_stepsize_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                                                        self.config.max_num_features), dtype=np.float64)
 
             for i in range(self.sample_size):
                 np.random.seed(i)
@@ -93,7 +94,7 @@ class Experiment:
                 optimizer = OPTIMIZER_DICT[self.method](self.config)
 
                 sample_msve = 0
-                current_checkpoint = 0
+                curr_checkpoint = 0
                 current_stepsizes = np.zeros(self.config.max_num_features, dtype=np.float64)
                 for j in range(TRAINING_DATA_SIZE):
                     current_obs_features = env.get_observable_features()
@@ -108,25 +109,23 @@ class Experiment:
                                                                         approximator.get_weight_vector())
                     approximator.update_weight_vector(new_weights)
 
-                    sample_msve += np.square(optimal_value - state_value) / CHECKPOINT
+                    # store summaries and update checkpoint
+                    sample_msve_per_run[i, curr_checkpoint] += np.square(optimal_value - state_value) / CHECKPOINT
+                    average_weight_per_checkpoint[i, curr_checkpoint][:new_weights.size] += new_weights / CHECKPOINT
                     if self.method != 'sgd':
-                        current_stepsizes[:ss.size] += ss / CHECKPOINT
+                        average_stepsize_per_checkpoint[i, curr_checkpoint][:ss.size] += ss / CHECKPOINT
                     if (j + 1) % CHECKPOINT == 0:
-                        sample_msve_per_run[i][current_checkpoint] += sample_msve
-                        sample_msve *= 0
-                        if self.method != 'sgd':
-                            stepsizes[i, current_checkpoint] += current_stepsizes
-                            current_stepsizes *= 0
-                        current_checkpoint += 1
+                        curr_checkpoint += 1
 
                     if terminal:
                         env.reset()
 
                     self.add_features(env, approximator, optimizer, alpha, j)
 
-            results_dir[names[a]] = {"sample_msve": sample_msve_per_run}
+            results_dir[names[a]] = {'sample_msve': sample_msve_per_run,
+                                     'average_weight_per_checkpoint': average_weight_per_checkpoint}
             if self.method != 'sgd':
-                results_dir['stepsizes'] = stepsizes
+                results_dir['average_stepsize_per_checkpoint'] = average_stepsize_per_checkpoint
 
             # agg_results = np.average(sample_msve_per_run, axis=0)
             # import matplotlib.pyplot as plt

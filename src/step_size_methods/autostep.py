@@ -39,7 +39,7 @@ class AutoStep:
         abs_dxh = np.abs(dxh)           # first term inside the max in line 4 of the paper
         temp_v = self.v + (1/self.tau) * self.stepsizes * np.square(features) * (abs_dxh - self.v)  # second term
         v = np.max((abs_dxh, temp_v), axis=0)   # max(first term, second term) corresponding to line 4 in Table 1
-        if np.sum(v>0) > 0:                     # checks that at least one term in v is positive
+        if np.sum(v>0) > 0:                     # checks at least one term in v is positive, v is strictly positive
             self.stepsizes[v > 0] *= np.exp((self.mu * dxh)[v > 0] / v[v > 0])  # line 5 in Table 1
 
         M = np.max((np.dot(self.stepsizes, np.square(features)), 1))            # line 6 in Table 1
