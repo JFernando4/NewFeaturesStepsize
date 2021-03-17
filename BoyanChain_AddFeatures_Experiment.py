@@ -81,12 +81,12 @@ class Experiment:
         for a, alpha in enumerate(alphas):
             self._print("Currently working on: {0}".format(names[a]))
             sample_msve_per_run = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT), dtype=np.float64)
-            true_msve_per_run = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT), dtype=np.float64)
             if self.method != 'sgd':
                 stepsizes = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT, self.config.max_num_features),
                                      dtype=np.float64)
 
             for i in range(self.sample_size):
+                np.random.seed(i)
                 self._print("\tCurrent sample: {0}".format(i+1))
                 env = BoyanChain(self.config)
                 approximator = LinearFunctionApproximator(self.config)
@@ -113,7 +113,6 @@ class Experiment:
                         current_stepsizes[:ss.size] += ss / CHECKPOINT
                     if (j + 1) % CHECKPOINT == 0:
                         sample_msve_per_run[i][current_checkpoint] += sample_msve
-                        true_msve_per_run[i][current_checkpoint] += env.compute_msve(new_weights)
                         sample_msve *= 0
                         if self.method != 'sgd':
                             stepsizes[i, current_checkpoint] += current_stepsizes
@@ -125,8 +124,7 @@ class Experiment:
 
                     self.add_features(env, approximator, optimizer, alpha, j)
 
-            results_dir[names[a]] = {
-                "sample_msve": sample_msve_per_run, "true_msve": true_msve_per_run}
+            results_dir[names[a]] = {"sample_msve": sample_msve_per_run}
             if self.method != 'sgd':
                 results_dir['stepsizes'] = stepsizes
 
