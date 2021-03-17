@@ -11,6 +11,7 @@ from src import SGD, Adam, IDBD, AutoStep, SIDBD
 BEST_PARAMETER_VALUE = {
     'sgd': 0.0075,          # found by sweeping over values in {0.25 0.2 0.1 0.05 0.03 0.01 0.0075 0.005 0.003 0.001}
     'adam': 0.02,           # found by sweeping over values in {0.06 0.05 0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.005}
+    'slow_adam': 0.03,      # found by sweeping over values in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
     'idbd': 0.02,           # found by sweeping over values in {0.045 0.04 0.035 0.03 0.025 0.02 0.015 0.01 0.005 0.001}
     'autostep': 0.009,      # found by sweeping over values in {0.05 0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005}
     'rescaled_sgd': 0.01,   # found by sweeping over values in {0.1 0.05 0.03 0.02 0.01 0.009 0.008 0.007 0.005 0.001}
@@ -19,7 +20,7 @@ BEST_PARAMETER_VALUE = {
 }
 
 OPTIMIZER_DICT = {'sgd': SGD, 'adam': Adam, 'idbd': IDBD, 'autostep': AutoStep, 'rescaled_sgd': SGD,
-                  'restart_adam': Adam, 'sidbd': SIDBD}
+                  'restart_adam': Adam, 'sidbd': SIDBD, 'slow_adam': Adam}
 
 TRAINING_DATA_SIZE = 200000     # number of training examples per run
 MIDPOINT = 100000               # number of iterations for first phase of training
@@ -66,8 +67,8 @@ class Experiment:
         if self.method in ['sgd', 'rescaled_sgd']:
             self.config.alpha = BEST_PARAMETER_VALUE[self.method]
             self.config.rescale = (self.method == 'rescaled_sgd')
-        elif self.method in ['adam', 'restart_adam']:
-            self.config.beta1 = 0.9
+        elif self.method in ['adam', 'restart_adam', 'slow_adam']:
+            self.config.beta1 = 0.9 if self.method == 'adam' else 0.0
             self.config.beta2 = 0.99
             self.config.eps = 1e-08
             self.config.init_alpha = BEST_PARAMETER_VALUE[self.method]
@@ -93,12 +94,18 @@ class Experiment:
         for a, alpha in enumerate(alphas):
             self._print("Currently working on: {0}".format(names[a]))
 
-            # For measuring performance:
+            # For measuring performance
             reward_per_step = np.zeros((self.sample_size, TRAINING_DATA_SIZE), dtype=np.int8)
+            diverging_runs = np.zeros(self.sample_size, dtype=np.int8)
+            action_counter = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                                        self.num_actions), dtype=np.int8)
+            weight_sum_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                                                  self.num_actions, self.config.max_num_features), dtype=np.float64)
             # For keeping track of stepsizes
             if self.method != 'sgd':
-                stepsizes = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT, self.config.max_num_features),
-                                     dtype=np.float64)
+                stepsize_sum_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                                                        self.num_actions, self.config.max_num_features),
+                                                       dtype=np.float64)
             # start processing samples
             for i in range(self.sample_size):
                 np.random.seed(i)
@@ -117,8 +124,6 @@ class Experiment:
                 # total_pe_iterations = 100
 
                 curr_checkpoint = 0
-                current_stepsizes = np.zeros(self.config.max_num_features, dtype=np.float64)
-
                 """ Start of Training """
                 curr_s = env.get_current_state()                                    # current state
                 curr_obs_feats = ff.get_observable_features(curr_s)                 # current observable features
@@ -152,12 +157,17 @@ class Experiment:
                     approximators[curr_a].update_weight_vector(new_weights)
                     # update state information and progress
                     curr_obs_feats = next_obs_feats
-                    reward_per_step[i][j] += np.int8(r)     # store at [current_sample][current_step]
+                    reward_per_step[i][j] += np.int8(r)
+                    action_counter[i][curr_checkpoint][curr_a] += np.int8(1)
+                    weight_sum_per_checkpoint[i][curr_checkpoint][curr_a] += new_weights
+                    if self.method != 'sgd':
+                        stepsize_sum_per_checkpoint[i][curr_checkpoint][curr_a] += ss
 
                     # handle cases where weights diverge
                     if np.sum(np.isnan(new_weights)) > 0 or np.sum(np.isinf(new_weights)) > 0:
                         print("\tThe weights diverged on iteration: {0}!".format(j+1))
                         reward_per_step[i][j+1:] += np.int8(-1)
+                        diverging_runs[i] += np.int8(1)
                         break
 
                     # check if terminal state
@@ -166,16 +176,8 @@ class Experiment:
                         curr_s = env.get_current_state()
                         curr_obs_feats = ff.get_observable_features(curr_s)
 
-                    # keep track of stepsize
-                    if self.method != 'sgd':
-                        current_stepsizes[:ss.size] += ss / CHECKPOINT
-
                     # process checkpoints
                     if (j + 1) % CHECKPOINT == 0:
-                        if self.method != 'sgd':
-                            # store and average of the stepsize
-                            stepsizes[i, curr_checkpoint] += current_stepsizes
-                            current_stepsizes *= 0
                         curr_checkpoint += 1
 
                     if self.add_features(ff, approximators, optimizers, alpha, j):
@@ -183,9 +185,12 @@ class Experiment:
                         # learning_approximators = copy.deepcopy(approximators)
                         # pe_phase = True
 
-            results_dir[names[a]] = {'reward_per_step': reward_per_step}
+            results_dir[names[a]] = {'reward_per_step': reward_per_step,
+                                     'diverging_runs': diverging_runs,
+                                     'action_counter': action_counter,
+                                     'weight_sum_per_checkpoint': weight_sum_per_checkpoint}
             if self.method != 'sgd':
-                results_dir['stepsizes'] = stepsizes
+                results_dir['stepsize_sum_per_checkpoint'] = stepsize_sum_per_checkpoint
 
             if DEBUG:
                 agg_results = np.average(reward_per_step, axis=0)
@@ -196,13 +201,11 @@ class Experiment:
                 plt.show()
                 plt.close()
 
-        if not DEBUG:
-            pass
-            # self.store_results(results_dir)
+        self.store_results(results_dir)
 
     def get_alphas_and_names(self):
         # If not using SGD, we don't need to se the stepsize of new features manually
-        if self.method in ['adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd']:
+        if self.method in ['adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd', 'slow_adam']:
             alphas = ['']
             names = [self.method]
             return alphas, names
@@ -268,13 +271,10 @@ class Experiment:
             return True     # True indicates that features were added to the representation
 
         # Add features every certain number of steps specified by ADD_FEATURE_INTERVAL
-        elif self.experiment_type in ['continuously_add_bad', 'continuously_add_random'] and\
-                (iteration_number + 1) % ADD_FEATURE_INTERVAL == 0:
-            if self.experiment_type == 'continuously_add_random':   # add random centers
-                feat_func.add_random_center()
-            else:                                                   # add irrelevant features
-                feat_func.add_feature(1, noise_mean=0.0, noise_var=5*self.config.init_noise_var,
-                                      fake_feature=self.add_fake_features)
+        elif self.experiment_type == 'continuously_add_bad' and (iteration_number + 1) % ADD_FEATURE_INTERVAL == 0:
+            # add bad features
+            feat_func.add_feature(1, noise_mean=0.0, noise_var=5*self.config.init_noise_var,
+                                  fake_feature=self.add_fake_features)
 
             for k in range(self.num_actions):   # extend function approximator and optimizer
                 approximator_list[k].increase_num_features(1)
@@ -320,7 +320,7 @@ def main():
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
 
-    experiment_name = 'mountain_car_task_add'
+    experiment_name = 'mountain_car_control_task_add'
     if exp_parameters.add_fake_features:
         experiment_name += '_fake'
     experiment_name += '_features'
