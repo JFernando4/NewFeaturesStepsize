@@ -1,5 +1,6 @@
 """
-implementation of autostep according to this paper: http://incompleteideas.net/609%20dropbox/other%20readings%20and%20resources/Tuning-free%20step-size%20adapt.pdf
+implementation of autostep according to this paper:
+http://incompleteideas.net/609%20dropbox/other%20readings%20and%20resources/Tuning-free%20step-size%20adapt.pdf
 """
 import numpy as np
 from src.util import Config, check_attribute
@@ -25,17 +26,24 @@ class AutoStep:
         self.v = np.zeros(self.parameter_size)
         self.h = np.zeros(self.parameter_size)
 
-    def update_weight_vector(self, error, features, weights):
-        gradient = error * features
+    def update_weight_vector(self, error, features: np.ndarray, weights: np.ndarray):
+        """
+        Implementation of the update function in Table 1 of the paper
+        :param error: np.float64 corresponding to target - prediction (delta in Table 1 of the paper)
+        :param features: np array of shape (num_weights, ) corresponding to the features used to compute the prediction
+        :param weights: np array of shape (num_weights, ) corresponding to the current weights of the approximator
+        :return: gradient, stepsizes, updated weights
+        """
+        gradient = error * features     # gradient for a linear approximator with squared error loss
         dxh = gradient * self.h
-        abs_dxh = np.abs(dxh)
-        temp_v = self.v + (1/self.tau) * self.stepsizes * np.square(features) * (abs_dxh - self.v)
-        v = np.max((abs_dxh, temp_v), axis=0)
-        if np.sum(v>0) > 0:
-            self.stepsizes[v > 0] *= np.exp((self.mu * dxh)[v > 0] / v[v > 0])
+        abs_dxh = np.abs(dxh)           # first term inside the max in line 4 of the paper
+        temp_v = self.v + (1/self.tau) * self.stepsizes * np.square(features) * (abs_dxh - self.v)  # second term
+        v = np.max((abs_dxh, temp_v), axis=0)   # max(first term, second term) corresponding to line 4 in Table 1
+        if np.sum(v>0) > 0:                     # checks that at least one term in v is positive
+            self.stepsizes[v > 0] *= np.exp((self.mu * dxh)[v > 0] / v[v > 0])  # line 5 in Table 1
 
-        M = np.max((np.dot(self.stepsizes, np.square(features)), 1))
-        self.stepsizes /= M
+        M = np.max((np.dot(self.stepsizes, np.square(features)), 1))            # line 6 in Table 1
+        self.stepsizes /= M                                                     # lin 7  in Table 1
         new_weights = weights + self.stepsizes * gradient
         self.h = self.h * (1 - self.stepsizes * np.square(features)) + self.stepsizes * gradient
         return gradient, self.stepsizes, new_weights
