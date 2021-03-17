@@ -241,8 +241,9 @@ if __name__ == '__main__':
     #   - 0.0075 completed the most episodes during the whole training period
     # Adam parameter values: initial stepsize in {0.06 0.05 0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.005}
     #   - 0.02 completed the most episodes during the whole training period
-    # Adam without momentum (called slow_adam in the code) values: initial stepsize in {}
-    #   - 0.02 completed the most episodes during the whole training period
+    # Adam without momentum (called slow_adam in the code) values: initial stepsize in
+    #   {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
+    #   - 0.03 completed the most episodes during the whole training period
     # TIDBD parameter values: theta in {0.045 0.04 0.035 0.03 0.025 0.02 0.015 0.01 0.005 0.001}
     #   - 0.02 completed the most episodes during the whole training period, but diverged when adding new features
     #     we still use it for the add features experiment
