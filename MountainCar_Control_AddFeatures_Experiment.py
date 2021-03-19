@@ -37,12 +37,13 @@ class Experiment:
         self.config = Config()
 
         self.experiment_type = exp_arguments.experiment_type
-        self.phased_training = (self.experiment_type not in ['continuously_add_bad', 'continuously_add_random'])
+        self.phased_training = (self.experiment_type == 'continuously_add_bad')
         self.sample_size = exp_arguments.sample_size
         self.verbose = exp_arguments.verbose
         self.results_path = results_path
         self.method = exp_arguments.method
         self.add_fake_features = exp_arguments.add_fake_features
+        self.baseline = exp_arguments.baseline
 
         " Feature Function Setup "
         self.config.state_dims = 2                                              # dimensions in mountain car
@@ -51,7 +52,7 @@ class Experiment:
         self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)), dtype=np.float64)
         self.config.sigma = 0.5                 # width of each feature
         self.config.init_noise_mean = 0.0       # mean and variance for the
-        self.config.init_noise_var = 0.01       # noise of each feature
+        self.config.init_noise_var = 0.01 if not self.baseline else 0.0     # noise of each feature
 
         " Environment Setup "
         self.config.norm_state = True       # normalized the state between -1 and 1
@@ -87,12 +88,17 @@ class Experiment:
         if self.verbose:
             print(some_string)
 
+    def setup_baseline(self, alpha_value):
+        if self.method == 'sgd':
+            self.config.alpha = alpha_value
+
     def run(self):
         results_dir = {'sample_size': self.sample_size}
         alphas, names = self.get_alphas_and_names()
 
         for a, alpha in enumerate(alphas):
             self._print("Currently working on: {0}".format(names[a]))
+            self.setup_baseline(alpha)
 
             # For measuring performance
             reward_per_step = np.zeros((self.sample_size, TRAINING_DATA_SIZE), dtype=np.int8)
@@ -230,6 +236,9 @@ class Experiment:
 
     def add_features(self, feat_func: RadialBasisFunction, approximator_list, optimizer_list, alpha, iteration_number):
 
+        if self.baseline:
+            return False
+
         # Add features half way through training
         if self.phased_training and iteration_number + 1 == MIDPOINT:
             num_good_features = 0
@@ -311,22 +320,29 @@ def main():
     """ Experiment Parameters """
     parser = argparse.ArgumentParser()
     parser.add_argument('-ss', '--sample_size', action='store', default=1, type=int)
-    parser.add_argument('-et', '--experiment_type', action='store', default='add_good_feature',
+    parser.add_argument('-et', '--experiment_type', action='store', default='add_good_feats',
                             choices=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                      'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
                         choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd',
                                  'slow_adam'])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
+    parser.add_argument('--baseline', action='store_true', default=False,
+                        help='Baseline where the initial features do not have noise and new features are not added.')
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
 
-    experiment_name = 'mountain_car_control_task_add'
-    if exp_parameters.add_fake_features:
-        experiment_name += '_fake'
-    experiment_name += '_features'
-    results_path = os.path.join(os.getcwd(), 'results', experiment_name, exp_parameters.method,
-                                exp_parameters.experiment_type)
+    if exp_parameters.baseline:
+        experiment_name = 'mountain_car_control_baseline'
+        results_path = os.path.join(os.getcwd(), 'results', experiment_name, exp_parameters.method)
+    else:
+        experiment_name = 'mountain_car_control_task_add'
+        if exp_parameters.add_fake_features:
+            experiment_name += '_fake'
+        experiment_name += '_features'
+        results_path = os.path.join(os.getcwd(), 'results', experiment_name, exp_parameters.method,
+                                    exp_parameters.experiment_type)
+
     os.makedirs(results_path, exist_ok=True)
 
     init_time = time.time()
