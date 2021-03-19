@@ -93,9 +93,8 @@ class Experiment:
                 approximator = LinearFunctionApproximator(self.config)
                 optimizer = OPTIMIZER_DICT[self.method](self.config)
 
-                sample_msve = 0
+                """ Start of Training """
                 curr_checkpoint = 0
-                current_stepsizes = np.zeros(self.config.max_num_features, dtype=np.float64)
                 for j in range(TRAINING_DATA_SIZE):
                     current_obs_features = env.get_observable_features()
                     state_value = approximator.get_prediction(current_obs_features)
