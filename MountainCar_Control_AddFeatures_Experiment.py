@@ -313,7 +313,7 @@ def main():
     parser.add_argument('-ss', '--sample_size', action='store', default=1, type=int)
     parser.add_argument('-et', '--experiment_type', action='store', default='add_good_feature',
                             choices=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
-                                     'add_5_good_100_bad', 'continuously_add_bad', 'continuously_add_random'])
+                                     'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
                         choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd',
                                  'slow_adam'])
