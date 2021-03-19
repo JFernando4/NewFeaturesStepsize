@@ -7,9 +7,44 @@ import pickle
 from src import get_average_and_standard_error, load_results, moving_sum, load_avg_learning_curve
 
 NUM_SAMPLES = 200000
-Xaxis = (np.arange(NUM_SAMPLES) + 1) * 100
 MIDPOINT = 100000
 RESCALED_SGD_COLORS = {'solid': '#3B3B3B', 'lighter': '#c4c4c4'}
+
+weights_and_stepsize_colors = [
+    "#44AA99",   # greenish
+    "#DDCC77",   # yellowish
+    "#CC6677"    # pinkish
+]
+
+methods_colors = {
+    'idbd': "#332288",  # blue
+    'autostep': "#DDCC77",  # yellow
+    'adam': "#AA4499",  # purple
+    'sidbd': "#117733",  # green-ish
+    'slow_adam': '#882255', # dark purple-ish
+    'rescaled_stepsize': '#3B3B3B', # black
+}
+
+methods_lighter_colors = {
+    'idbd': "#b3add3",  # blue
+    'autostep': "#f2ebcc",  # yellow
+    'adam' :"#ebd3e7",  # purple
+    'sidbd':"#b8d5c2",  # green-ish
+    'slow_adam': '#e0c4d2',   # dark purple-ish
+    'rescaled_stepsize':'#c4c4c4', #black
+}
+
+sgd_colors = [
+    "#78b5d2",  # blue
+    "#ffdd8e",  # yellow
+    "#b696d7",  # purple
+]
+
+sgd_lighter_colors = [
+    "#c6dfec",  # blue
+    "#fff0cc",  # yellow
+    "#d9c8ea",  # purple
+]
 
 
 def load_learning_curves(results_dirpath, method_name, exp_type, bin_size=1000,
@@ -43,7 +78,7 @@ def load_learning_curves(results_dirpath, method_name, exp_type, bin_size=1000,
 
 
 def load_stepsizes_and_weights(results_dirpath, method_name, exp_type, exclude_diverging=False,
-                               recompute=False, agg_actions=False):
+                               recompute=False, agg_actions=False, secondary_name='small_stepsize'):
 
     results_filename = "stepsize_and_weights"
     if exclude_diverging: results_filename += "_excluding_diverging_runs"
@@ -55,26 +90,33 @@ def load_stepsizes_and_weights(results_dirpath, method_name, exp_type, exclude_d
         avg_stepsizes, avg_weights = load_results(learning_curve_path)
     else:
         raw_results_path = os.path.join(results_dirpath, method_name, exp_type, 'results.p')
-        results_dict = load_results(raw_results_path)[method_name]
+        if method_name != 'sgd':
+            results_dict = load_results(raw_results_path)[method_name]
+        else:
+            results_dict = load_results(raw_results_path)[secondary_name]
 
         diverging_runs = results_dict['diverging_runs']
         action_counter = results_dict['action_counter']
-        stepsize_sum_per_checkpoint = results_dict['stepsize_sum_per_checkpoint']
+        avg_stepsizes = None
         weight_sum_per_checkpoint = results_dict['weight_sum_per_checkpoint']
+        if method_name != 'sgd': stepsize_sum_per_checkpoint = results_dict['stepsize_sum_per_checkpoint']
+
         if exclude_diverging:
             action_counter = action_counter[diverging_runs == 0]
-            stepsize_sum_per_checkpoint = stepsize_sum_per_checkpoint[diverging_runs == 0]
             weight_sum_per_checkpoint = weight_sum_per_checkpoint[diverging_runs == 0]
+            if method_name != 'sgd': stepsize_sum_per_checkpoint = stepsize_sum_per_checkpoint[diverging_runs == 0]
         if agg_actions:
             action_counter = np.sum(action_counter, axis=2)
-            stepsize_sum_per_checkpoint = np.sum(stepsize_sum_per_checkpoint, axis=2)
             weight_sum_per_checkpoint = np.sum(weight_sum_per_checkpoint, axis=2)
-        action_counter = action_counter.reshape(action_counter.shape + (1,))
-        avg_stepsizes_per_checkpoint = stepsize_sum_per_checkpoint / action_counter
-        avg_weight_per_checkpoint = weight_sum_per_checkpoint / action_counter
+            if method_name != 'sgd': stepsize_sum_per_checkpoint = np.sum(stepsize_sum_per_checkpoint, axis=2)
 
-        avg_stepsizes = np.average(avg_stepsizes_per_checkpoint, axis=0)
+        action_counter = action_counter.reshape(action_counter.shape + (1,))
+        avg_weight_per_checkpoint = weight_sum_per_checkpoint / action_counter
         avg_weights = np.average(avg_weight_per_checkpoint, axis=0)
+
+        if method_name != 'sgd':
+            avg_stepsizes_per_checkpoint = stepsize_sum_per_checkpoint / action_counter
+            avg_stepsizes = np.average(avg_stepsizes_per_checkpoint, axis=0)
 
         with open(learning_curve_path, mode='wb') as learning_curve_file:
             pickle.dump((avg_stepsizes, avg_weights), learning_curve_file)
@@ -104,35 +146,24 @@ def get_num_features(exp_type):
         raise ValueError("{0} is not a valid method.".format(exp_type))
 
 
-def sgd_plots(save_plots=False, fake_features=False, bin_size=1000):
+def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights=False):
     assert NUM_SAMPLES % bin_size == 0
     downsample = 1000
-    Xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    checkpoint = 1000
+    lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    ws_xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
 
     method = 'sgd'
     ms_func = lambda a: moving_sum(a, bin_size)
 
     if fake_features:
-        task_name = 'mountain_car_task_add_fake_features'
-        experiment_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
+        task_name = 'mountain_car_control_task_add_fake_features'
     else:
-        task_name = 'mountain_car_task_add_features'
-        experiment_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
+        task_name = 'mountain_car_control_task_add_features'
 
+    experiment_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
     results_dir = os.path.join(os.getcwd(), 'results', task_name)
     ylim = (0.0, 8 * (bin_size // 1000))
-
-    colors = [
-        "#78b5d2",  # blue
-        "#ffdd8e",  # yellow
-        "#b696d7",  # purple
-    ]
-
-    lighter_colors = [
-        "#c6dfec",  # blue
-        "#fff0cc",  # yellow
-        "#d9c8ea",  # purple
-    ]
 
     for exp_name in experiment_names:
 
@@ -143,17 +174,18 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000):
             moving_sum_per_run = np.apply_along_axis(ms_func, 1, results_dict[n]['reward_per_step']) + bin_size
             avg, ste = get_average_and_standard_error(data_array=moving_sum_per_run, bin_size=1,
                                                       num_samples=NUM_SAMPLES)
-            plt.plot(Xaxis[::downsample], avg[::downsample], color=colors[i], label=n)
-            plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
-                             color=lighter_colors[i])
+            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=sgd_colors[i], label=n)
+            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                             color=sgd_lighter_colors[i])
 
         avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
                                            bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
                                            learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
                                            num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
                                            use_moving_sume=True)
-        plt.plot(Xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted', label='rescaled_sgd')
-        plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+        plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
+                 label='rescaled_sgd')
+        plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                          color=RESCALED_SGD_COLORS['lighter'])
 
         if exp_name != 'continuously_add_bad':
@@ -168,6 +200,29 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000):
         else:
             plt.show()
         plt.close()
+
+        if plot_weights:
+
+            for n in names:
+                _, avg_weights = load_stepsizes_and_weights(results_dirpath=results_dir, method_name='sgd',
+                                                            exp_type=exp_name, exclude_diverging=True, recompute=True,
+                                                            agg_actions=True, secondary_name=n)
+
+                num_features = get_num_features(exp_name)
+                current_features = 0
+                for j, nf in enumerate(num_features):
+                    for k in range(current_features, current_features + nf):
+                        plt.plot(ws_xaxis, avg_weights[:,k], color=weights_and_stepsize_colors[j])
+                    current_features += nf
+                plt.title('{1}, {0}, sgd'.format(n, exp_name))
+                plt.xlabel("Training Examples", fontsize=18)
+                plt.ylabel("Average Weight", fontsize=18, rotation=0, labelpad=70)
+                plt.vlines(x=MIDPOINT, ymin=-60, ymax=40, colors='#BD2A4E', linestyles='dashed')
+                if save_plots:
+                    plt.savefig(n + "_weights_plot_" + exp_name + '_sgd' + '.svg', dpi=200)
+                else:
+                    plt.show()
+                plt.close()
 
     ########################################
     # add_one_good_100_bad data #####
@@ -189,9 +244,9 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000):
                                                learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
                                                num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
                                                use_moving_sume=True)
-            plt.plot(Xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
+            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
                      label='rescaled_sgd')
-            plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                              color=RESCALED_SGD_COLORS['lighter'])
 
             i = 0
@@ -201,9 +256,9 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000):
                                                          results_dict[names[name_index]]['reward_per_step']) + bin_size
                 avg, ste = get_average_and_standard_error(data_array=moving_sum_per_run, bin_size=1,
                                                           num_samples=NUM_SAMPLES)
-                plt.plot(Xaxis[::downsample], avg[::downsample], color=colors[i], label=names[name_index])
-                plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
-                                 color=lighter_colors[i])
+                plt.plot(lc_xaxis[::downsample], avg[::downsample], color=sgd_colors[i], label=names[name_index])
+                plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                                 color=sgd_lighter_colors[i])
                 i += 1
 
             plt.vlines(x=MIDPOINT, ymin=0, ymax=100, colors='#BD2A4E', linestyles='dashed')
@@ -224,8 +279,9 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                            experiment_types=('add_good_feats',), methods=('adam',)):
     downsample = 1000
     num_actions = 3
-    # methods = ['idbd', 'autostep', 'adam', 'sidbd']
-    Xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    checkpoint = 1000
+    ws_xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
 
     # experiment_types = ['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
     #                     'add_5_good_100_bad', 'continuously_add_bad']
@@ -236,26 +292,6 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
         # experiment_names.append('add_good_feats')
 
     results_dir = os.path.join(os.getcwd(), 'results', task_name)
-
-    methods_colors = {
-        'idbd': "#332288",  # blue
-        'autostep': "#DDCC77",  # yellow
-        'adam': "#AA4499",  # purple
-        'sidbd': "#117733",  # green-ish
-    }
-
-    methods_lighter_colors = {
-        'idbd': "#b3add3",  # blue
-        'autostep': "#f2ebcc",  # yellow
-        'adam' :"#ebd3e7",  # purple
-        'sidbd':"#b8d5c2",  # green-ish
-    }
-
-    stepsize_colors = [
-        "#44AA99",   # greenish
-        "#DDCC77",   # yellowish
-        "#CC6677"    # pinkish
-    ]
 
     if plot_learning_curves:
         """ Plot Learning Curves """
@@ -271,8 +307,8 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
 
                 print("\tMethod: {0}\n\tNumber of Diverging Runs: {1}".format(m, num_dvg))
 
-                plt.plot(Xaxis[::downsample], avg[::downsample], color=methods_colors[m], label=m)
-                plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                plt.plot(lc_xaxis[::downsample], avg[::downsample], color=methods_colors[m], label=m)
+                plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                                  color=methods_lighter_colors[m])
 
             avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
@@ -281,9 +317,9 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                                                num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
                                                use_moving_sume=True)
 
-            plt.plot(Xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], label='rescaled_sgd',
+            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], label='rescaled_sgd',
                      linestyle='dotted')
-            plt.fill_between(Xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                              color=RESCALED_SGD_COLORS['lighter'])
 
             plt.legend()
@@ -302,8 +338,6 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 plt.show()
             plt.close()
 
-    checkpoint = 1000
-    Xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
     """ Plot Stepsizes """
     if plot_stepsizes:
         ylim = (0,0.23)
@@ -322,10 +356,10 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 for j, nf in enumerate(num_features):
                     for k in range(current_features, current_features + nf):
                         if agg_actions:
-                            plt.plot(Xaxis, avg_stepsizes[:, k], color=stepsize_colors[j])
+                            plt.plot(ws_xaxis, avg_stepsizes[:, k], color=weights_and_stepsize_colors[j])
                         else:
                             for a in range(num_actions):
-                                plt.plot(Xaxis, avg_stepsizes[:, a, k], color=stepsize_colors[j])
+                                plt.plot(ws_xaxis, avg_stepsizes[:, a, k], color=weights_and_stepsize_colors[j])
                         # plt.ylim(ylim[m][exp_name])
                         # plt.savefig(str(serial_name) + '.png')
                         # plt.show()
@@ -357,10 +391,10 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 for j, nf in enumerate(num_features):
                     for k in range(current_features, current_features + nf):
                         if agg_actions:
-                            plt.plot(Xaxis, avg_weights[:, k], color=stepsize_colors[j])
+                            plt.plot(ws_xaxis, avg_weights[:, k], color=weights_and_stepsize_colors[j])
                         else:
                             for a in range(num_actions):
-                                plt.plot(Xaxis, avg_weights[:, a, k], color=stepsize_colors[j])
+                                plt.plot(ws_xaxis, avg_weights[:, a, k], color=weights_and_stepsize_colors[j])
                     current_features += nf
                 plt.title('{0}, {1}'.format(exp_name, m))
                 plt.xlabel("Training Examples", fontsize=18)
@@ -374,6 +408,34 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 plt.close()
 
 
+def baseline_plots(bin_size=1000, save_plots=False, plot_learning_curves=False, plot_weights=False,
+                   exclude_diverging_runs=False, methods=('adam',)):
+
+    results_dir = os.path.join(os.getcwd(), 'results', 'mountain_car_control_baseline')
+    ms_function = lambda a: moving_sum(a, bin_size)
+
+    downsample = 1000
+    lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    checkpoint = 1000
+    ws_xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
+
+    if plot_learning_curves:
+
+        ylim = (0.0, 8 * (bin_size // 1000))
+
+        for i, m in enumerate(methods):
+
+            num_dvg, avg, ste = load_learning_curves(results_dirpath=results_dir, method_name=m, exp_type='',
+                                                     bin_size=bin_size, num_samples=NUM_SAMPLES,
+                                                     exclude_diverging=exclude_diverging_runs)
+
+            print("\tMethod: {0}\n\tNumber of Diverging Runs: {1}".format(m, num_dvg))
+
+            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=methods_colors[m], label=m)
+            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                             color=methods_lighter_colors[m])
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--sgd_plots', action='store_true', default=False)
@@ -381,6 +443,7 @@ if __name__ == "__main__":
     parser.add_argument('--plot_learning_curves', action='store_true', default=False)
     parser.add_argument('--plot_stepsizes', action='store_true', default=False)
     parser.add_argument('--plot_weights', action='store_true', default=False)
+    parser.add_argument('--plot_baselines', action='store_true', default=False)
     parser.add_argument('-sp', '--save_plots', action='store_true', default=False)
     parser.add_argument('-bs', '--bin_size', action='store', default=1, type=int)
     parser.add_argument('-ff', '--fake_features', action='store_true', default=False)
@@ -389,12 +452,12 @@ if __name__ == "__main__":
     parser.add_argument('-et', '--experiment_types', action='store', nargs='+', type=str,
                         default=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                  'add_5_good_100_bad', 'continuously_add_bad'])
-    parser.add_argument('-m', '--methods', action='store', nargs='+', type=str, required=True, default='adam')
+    parser.add_argument('-m', '--methods', action='store', nargs='+', type=str, required=False, default='adam')
     plot_parameters = parser.parse_args()
 
     if plot_parameters.sgd_plots:
         sgd_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
-                  fake_features=plot_parameters.fake_features)
+                  fake_features=plot_parameters.fake_features, plot_weights=plot_parameters.plot_weights)
     if plot_parameters.stepsize_methods_plots:
         stepsize_methods_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                                plot_learning_curves=plot_parameters.plot_learning_curves,
@@ -405,6 +468,11 @@ if __name__ == "__main__":
                                agg_actions=plot_parameters.aggregate_actions,
                                experiment_types=plot_parameters.experiment_types,
                                methods=plot_parameters.methods)
+    if plot_parameters.plot_baselines:
+        baseline_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
+                       plot_learning_curves=plot_parameters.plot_learning_curves,
+                       exclude_diverging_runs=plot_parameters.exclude_diverging_runs,
+                       plot_weights=plot_parameters.plot_weights)
 
     # color_blind_palette = {
     #     'blue-ish': '#332288',   # I'm not good at naming colors
