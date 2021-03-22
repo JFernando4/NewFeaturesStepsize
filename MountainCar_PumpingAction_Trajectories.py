@@ -21,8 +21,6 @@ def GenerateTrajectories(seed=0, num_evaluations=1000, verbose=False):
     gamma = 0.99
     num_states = 2
 
-    trajectories = []
-    seeds = []
     print("Currently working on seed {0}...".format(seed))
     np.random.seed(seed)
     # initialize environment
@@ -33,18 +31,32 @@ def GenerateTrajectories(seed=0, num_evaluations=1000, verbose=False):
     terminations = np.zeros(NUM_TRANSITIONS, dtype=np.int8)
 
     # generate trajectory
-    for i in range(NUM_TRANSITIONS):
-        curr_s = env.get_current_state()
-        curr_a = pumping_action(curr_s, rprob=epsilon)
-        curr_s, reward, terminal = env.step(curr_a)
+    states[0] = env.get_current_state()
+    curr_a = pumping_action(states[0])
+    actions[0] = np.int32(curr_a)
+    rewards[0] = np.int8(0)
+    terminations[0] = np.int8(0)
+    i = 1
+    while i < NUM_TRANSITIONS:
+        next_s, next_reward, next_term = env.step(curr_a)
+        next_a = pumping_action(next_s, rprob=epsilon)
 
-        states[i] += curr_s
-        actions[i] += np.int32(curr_a)
-        rewards[i] += np.int8(reward)
-        terminations[i] += np.int8(terminal)
+        states[i] += next_s
+        actions[i] += np.int32(next_a)
+        rewards[i] += np.int8(next_reward)
+        terminations[i] += np.int8(next_term)
 
-        if terminal:
+        curr_a = next_a
+        i += 1
+
+        if next_term:
             env.reset()
+            states[i] = env.get_current_state()
+            curr_a = pumping_action(states[i])
+            actions[i] = np.int32(curr_a)
+            rewards[i] = np.int8(0)
+            terminations[i] = np.int8(0)
+            i += 1
 
     # compute estimated discounted returns for each state in the trajectory using monte carlo rollouts
     avg_discounted_returns = np.zeros(NUM_TRANSITIONS, dtype=np.float64)
