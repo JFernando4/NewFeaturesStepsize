@@ -49,7 +49,7 @@ def GenerateTrajectories(seed=0, num_evaluations=1000, verbose=False):
         curr_a = next_a
         i += 1
 
-        if next_term:
+        if next_term and i < NUM_TRANSITIONS:
             env.reset()
             states[i] = env.get_current_state()
             curr_a = pumping_action(states[i])
