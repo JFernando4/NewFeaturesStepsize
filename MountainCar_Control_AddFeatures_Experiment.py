@@ -27,7 +27,7 @@ MIDPOINT = 100000               # number of iterations for first phase of traini
 ADD_FEATURE_INTERVAL = 1000     # number of iterations before adding another feature when 'continuously_add_bad'
 CHECKPOINT = 1000               # how often store the mean squared error
 STEPSIZE_GROWTH_FACTOR = 10     # how much to increase or decrease the stepsize for sgd
-DEBUG = True
+DEBUG = False
 
 
 class Experiment:
@@ -209,7 +209,7 @@ class Experiment:
                 plt.show()
                 plt.close()
 
-        # self.store_results(results_dir)
+        self.store_results(results_dir)
 
     def get_alphas_and_names(self):
         # If not using SGD, we don't need to se the stepsize of new features manually
