@@ -60,7 +60,8 @@ class Experiment:
         self.num_actions = 3                # number of actions in the mountain car environment
         # number of observable features at the start of training
         self.config.num_obs_features = self.config.initial_centers.shape[0]
-        self.config.max_num_features = 215  # as long as it is more than 205
+        # max_num_features should be at least num_obs_features + num_new_features
+        self.config.max_num_features = self.config.num_obs_features + self.get_num_new_features() + 1
         self.epsilon = 0.1                  # reasonable choice in mountain car
         self.gamma = 0.99                   # discount factor
 
@@ -315,6 +316,20 @@ class Experiment:
             return argmax_av
         else:
             return np.random.randint(self.num_actions)
+
+    def get_num_new_features(self):
+        if self.experiment_type in ['add_good_feats', 'add_bad_feats']:
+            return 5
+        elif self.experiment_type == 'add_5_good_5_bad':
+            return 10
+        elif self.experiment_type == 'add_5_good_20_bad':
+            return 25
+        elif self.experiment_type == 'add_5_good_100_bad':
+            return 105
+        elif self.experiment_type == 'continuously_add_bad':
+            return 200
+        else:
+            raise ValueError("{0} is not a valid experiment type.".format(self.experiment_type))
 
 
 def main():
