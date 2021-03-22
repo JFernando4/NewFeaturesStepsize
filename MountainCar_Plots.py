@@ -7,6 +7,7 @@ import pickle
 from src import get_average_and_standard_error, load_results, moving_sum, load_avg_learning_curve
 
 NUM_SAMPLES = 200000
+EXTENDED_NUM_SAMPLES = NUM_SAMPLES * 2
 MIDPOINT = 100000
 RESCALED_SGD_COLORS = {'solid': '#3B3B3B', 'lighter': '#c4c4c4'}
 
@@ -83,6 +84,7 @@ def load_stepsizes_and_weights(results_dirpath, method_name, exp_type, exclude_d
     results_filename = "stepsize_and_weights"
     if exclude_diverging: results_filename += "_excluding_diverging_runs"
     if agg_actions: results_filename += '_aggregated_actions'
+    if method_name == 'sgd': results_filename += "_" + secondary_name
     results_filename += ".p"
 
     learning_curve_path = os.path.join(results_dirpath, method_name, exp_type, results_filename)
@@ -146,12 +148,15 @@ def get_num_features(exp_type):
         raise ValueError("{0} is not a valid method.".format(exp_type))
 
 
-def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights=False):
+def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights=False,
+              exp_names=('add_good_feats', ), extend_training=False):
     assert NUM_SAMPLES % bin_size == 0
     downsample = 1000
     checkpoint = 1000
-    lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
-    ws_xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
+
+    num_samples = NUM_SAMPLES if not extend_training else EXTENDED_NUM_SAMPLES
+    lc_xaxis = np.arange(num_samples - bin_size + 1) + 1
+    ws_xaxis = (np.arange(num_samples // checkpoint) + 1) * 1000
 
     method = 'sgd'
     ms_func = lambda a: moving_sum(a, bin_size)
@@ -160,8 +165,11 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
         task_name = 'mountain_car_control_task_add_fake_features'
     else:
         task_name = 'mountain_car_control_task_add_features'
+    if extend_training:
+        task_name += '_extended_training'
 
-    experiment_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
+    default_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
+    experiment_names = list(set(default_names) & set(exp_names))
     results_dir = os.path.join(os.getcwd(), 'results', task_name)
     ylim = (0.0, 8 * (bin_size // 1000))
 
@@ -173,20 +181,21 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
         for i, n in enumerate(names):
             moving_sum_per_run = np.apply_along_axis(ms_func, 1, results_dict[n]['reward_per_step']) + bin_size
             avg, ste = get_average_and_standard_error(data_array=moving_sum_per_run, bin_size=1,
-                                                      num_samples=NUM_SAMPLES)
+                                                      num_samples=num_samples)
             plt.plot(lc_xaxis[::downsample], avg[::downsample], color=sgd_colors[i], label=n)
             plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                              color=sgd_lighter_colors[i])
 
-        avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
-                                           bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
-                                           learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
-                                           num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
-                                           use_moving_sume=True)
-        plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
-                 label='rescaled_sgd')
-        plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
-                         color=RESCALED_SGD_COLORS['lighter'])
+        if not extend_training:
+            avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
+                                               bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
+                                               learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
+                                               num_samples=num_samples, secondary_results_name='reward_per_step',
+                                               use_moving_sume=True)
+            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
+                     label='rescaled_sgd')
+            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                             color=RESCALED_SGD_COLORS['lighter'])
 
         if exp_name != 'continuously_add_bad':
             plt.vlines(x=MIDPOINT, ymin=0, ymax=100, colors='#BD2A4E', linestyles='dashed')
@@ -205,7 +214,7 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
 
             for n in names:
                 _, avg_weights = load_stepsizes_and_weights(results_dirpath=results_dir, method_name='sgd',
-                                                            exp_type=exp_name, exclude_diverging=True, recompute=True,
+                                                            exp_type=exp_name, exclude_diverging=True, recompute=False,
                                                             agg_actions=True, secondary_name=n)
 
                 num_features = get_num_features(exp_name)
@@ -227,7 +236,8 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
     ########################################
     # add_one_good_100_bad data #####
     ########################################
-    experiment_names = ['add_5_good_5_bad', 'add_5_good_20_bad', 'add_5_good_100_bad']
+    default_names = ['add_5_good_5_bad', 'add_5_good_20_bad', 'add_5_good_100_bad']
+    experiment_names = list(set(default_names) & set(exp_names))
     og_names = ['small', 'med', 'large']
     names = []
     for i in range(len(og_names)):  # every combination of (x,y) for x,y in {'small', 'med', 'large'}
@@ -242,7 +252,7 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
             avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
                                                bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
                                                learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
-                                               num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
+                                               num_samples=num_samples, secondary_results_name='reward_per_step',
                                                use_moving_sume=True)
             plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], linestyle='dotted',
                      label='rescaled_sgd')
@@ -276,7 +286,7 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
 
 def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_curves=False, plot_stepsizes=False,
                            plot_weights=False, bin_size=5, exclude_diverging_runs=False, agg_actions=False,
-                           experiment_types=('add_good_feats',), methods=('adam',)):
+                           experiment_types=('add_good_feats',), methods=('adam',), extended_training=False):
     downsample = 1000
     num_actions = 3
     lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
@@ -409,7 +419,7 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
 
 
 def baseline_plots(bin_size=1000, save_plots=False, plot_learning_curves=False, plot_weights=False,
-                   exclude_diverging_runs=False, methods=('adam',)):
+                   exclude_diverging_runs=False, methods=('adam',), extended_training=False):
 
     results_dir = os.path.join(os.getcwd(), 'results', 'mountain_car_control_baseline')
     ms_func = lambda a: moving_sum(a, bin_size)
@@ -477,12 +487,15 @@ if __name__ == "__main__":
     parser.add_argument('-et', '--experiment_types', action='store', nargs='+', type=str,
                         default=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                  'add_5_good_100_bad', 'continuously_add_bad'])
+    parser.add_argument('-etr', '--extended_training', action='store_true', default=False)
     parser.add_argument('-m', '--methods', action='store', nargs='+', type=str, required=False, default='adam')
     plot_parameters = parser.parse_args()
 
     if plot_parameters.sgd_plots:
         sgd_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
-                  fake_features=plot_parameters.fake_features, plot_weights=plot_parameters.plot_weights)
+                  fake_features=plot_parameters.fake_features, plot_weights=plot_parameters.plot_weights,
+                  exp_names=plot_parameters.experiment_types, extend_training=plot_parameters.extended_training)
+
     if plot_parameters.stepsize_methods_plots:
         stepsize_methods_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                                plot_learning_curves=plot_parameters.plot_learning_curves,
@@ -493,6 +506,7 @@ if __name__ == "__main__":
                                agg_actions=plot_parameters.aggregate_actions,
                                experiment_types=plot_parameters.experiment_types,
                                methods=plot_parameters.methods)
+
     if plot_parameters.plot_baselines:
         baseline_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                        plot_learning_curves=plot_parameters.plot_learning_curves,
