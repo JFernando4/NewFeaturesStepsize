@@ -156,8 +156,8 @@ class Experiment:
                         curr_checkpoint += 1
 
                     # handle terminal states
-                    if next_term:
-                        k += 1
+                    if next_term and k < self.num_transitions:
+                        k += 1      # skips terminal states
                         curr_obs_feats = self.feature_function.get_observable_features(states[k])
 
                 if DEBUG:
