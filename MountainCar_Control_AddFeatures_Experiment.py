@@ -43,6 +43,7 @@ class Experiment:
         self.results_path = results_path
         self.method = exp_arguments.method
         self.add_fake_features = exp_arguments.add_fake_features
+        self.num_transitions = TRAINING_DATA_SIZE if not exp_arguments.extended_training else TRAINING_DATA_SIZE * 2
         self.baseline = exp_arguments.baseline
 
         " Feature Function Setup "
@@ -101,15 +102,15 @@ class Experiment:
             self.setup_baseline(alpha)
 
             # For measuring performance
-            reward_per_step = np.zeros((self.sample_size, TRAINING_DATA_SIZE), dtype=np.int8)
+            reward_per_step = np.zeros((self.sample_size, self.num_transitions), dtype=np.int8)
             diverging_runs = np.zeros(self.sample_size, dtype=np.int8)
-            action_counter = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+            action_counter = np.zeros((self.sample_size, self.num_transitions // CHECKPOINT,
                                        self.num_actions), dtype=np.int32)
-            weight_sum_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+            weight_sum_per_checkpoint = np.zeros((self.sample_size, self.num_transitions // CHECKPOINT,
                                                   self.num_actions, self.config.max_num_features), dtype=np.float64)
             # For keeping track of stepsizes
             if self.method != 'sgd':
-                stepsize_sum_per_checkpoint = np.zeros((self.sample_size, TRAINING_DATA_SIZE // CHECKPOINT,
+                stepsize_sum_per_checkpoint = np.zeros((self.sample_size, self.num_transitions // CHECKPOINT,
                                                         self.num_actions, self.config.max_num_features),
                                                        dtype=np.float64)
             # start processing samples
@@ -133,7 +134,7 @@ class Experiment:
                 """ Start of Training """
                 curr_s = env.get_current_state()                                    # current state
                 curr_obs_feats = ff.get_observable_features(curr_s)                 # current observable features
-                for j in range(TRAINING_DATA_SIZE):
+                for j in range(self.num_transitions):
                     curr_avs = self.get_action_values(curr_obs_feats, approximators)    # current action values
                     curr_a = self.epsilon_greedy_policy(curr_avs)                       # current action
                     # execute action
@@ -329,6 +330,8 @@ def main():
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('--baseline', action='store_true', default=False,
                         help='Baseline where the initial features do not have noise and new features are not added.')
+    parser.add_argument('-etr', '--extended_training', action='store_true', default=False,
+                        help='Add features after 100k steps and then trains for another 300k steps.')
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
 
@@ -340,6 +343,8 @@ def main():
         if exp_parameters.add_fake_features:
             experiment_name += '_fake'
         experiment_name += '_features'
+        if exp_parameters.extended_training:
+            experiment_name += '_extended_training'
         results_path = os.path.join(os.getcwd(), 'results', experiment_name, exp_parameters.method,
                                     exp_parameters.experiment_type)
 
