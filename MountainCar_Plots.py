@@ -17,21 +17,21 @@ weights_and_stepsize_colors = [
 ]
 
 methods_colors = {
-    'idbd': "#332288",  # blue
-    'autostep': "#DDCC77",  # yellow
-    'adam': "#AA4499",  # purple
-    'sidbd': "#117733",  # green-ish
-    'slow_adam': '#882255', # dark purple-ish
-    'rescaled_stepsize': '#3B3B3B', # black
+    'idbd': "#332288",                  # blue
+    'autostep': "#DDCC77",              # yellow
+    'adam': "#AA4499",                  # purple
+    'sidbd': "#117733",                 # green-ish
+    'slow_adam': '#882255',             # dark purple-ish
+    'rescaled_stepsize': '#3B3B3B',     # black
 }
 
 methods_lighter_colors = {
-    'idbd': "#b3add3",  # blue
-    'autostep': "#f2ebcc",  # yellow
-    'adam' :"#ebd3e7",  # purple
-    'sidbd':"#b8d5c2",  # green-ish
-    'slow_adam': '#e0c4d2',   # dark purple-ish
-    'rescaled_stepsize':'#c4c4c4', #black
+    'idbd': "#b3add3",                  # blue
+    'autostep': "#f2ebcc",              # yellow
+    'adam' :"#ebd3e7",                  # purple
+    'sidbd':"#b8d5c2",                  # green-ish
+    'slow_adam': '#e0c4d2',             # dark purple-ish
+    'rescaled_stepsize': '#c4c4c4',     # black
 }
 
 sgd_colors = [
@@ -412,8 +412,7 @@ def baseline_plots(bin_size=1000, save_plots=False, plot_learning_curves=False, 
                    exclude_diverging_runs=False, methods=('adam',)):
 
     results_dir = os.path.join(os.getcwd(), 'results', 'mountain_car_control_baseline')
-    ms_function = lambda a: moving_sum(a, bin_size)
-
+    ms_func = lambda a: moving_sum(a, bin_size)
     downsample = 1000
     lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
     checkpoint = 1000
@@ -425,15 +424,41 @@ def baseline_plots(bin_size=1000, save_plots=False, plot_learning_curves=False, 
 
         for i, m in enumerate(methods):
 
-            num_dvg, avg, ste = load_learning_curves(results_dirpath=results_dir, method_name=m, exp_type='',
-                                                     bin_size=bin_size, num_samples=NUM_SAMPLES,
-                                                     exclude_diverging=exclude_diverging_runs)
+            if m == 'sgd':
+                results_dict = load_results(os.path.join(results_dir, m, 'results.p'))
+                for n, ss in enumerate(['small_stepsize', 'med_stepsize', 'large_stepsize']):
+                    moving_sum_per_run = np.apply_along_axis(ms_func, 1,
+                                                             results_dict[ss]['reward_per_step']) + bin_size
+                    avg, ste = get_average_and_standard_error(data_array=moving_sum_per_run, bin_size=1,
+                                                              num_samples=NUM_SAMPLES)
+                    plt.plot(lc_xaxis[::downsample], avg[::downsample], color=sgd_colors[n], label=ss)
+                    plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                                     color=sgd_lighter_colors[n])
+            else:
+                num_dvg, avg, ste = load_learning_curves(results_dirpath=results_dir, method_name=m, exp_type='',
+                                                         bin_size=bin_size, num_samples=NUM_SAMPLES,
+                                                         exclude_diverging=exclude_diverging_runs)
 
-            print("\tMethod: {0}\n\tNumber of Diverging Runs: {1}".format(m, num_dvg))
+                print("\tMethod: {0}\n\tNumber of Diverging Runs: {1}".format(m, num_dvg))
 
-            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=methods_colors[m], label=m)
-            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
-                             color=methods_lighter_colors[m])
+                plt.plot(lc_xaxis[::downsample], avg[::downsample], color=methods_colors[m], label=m)
+                plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                                 color=methods_lighter_colors[m])
+
+        plt.legend()
+        plt.xlabel("Training Examples", fontsize=18)
+        plt.ylabel("Episodes Completed\nOver {0} Steps".format(bin_size), fontsize=18, rotation=0, labelpad=100)
+        plt.title('Baseline')
+        plt.vlines(x=MIDPOINT, ymin=0, ymax=100, colors='#BD2A4E', linestyles='dashed')
+        plt.ylim(ylim)
+        if save_plots:
+            plot_name = 'baseline_'
+            if exclude_diverging_runs: plot_name += 'excluding_diverging_runs'
+            plot_name += '.svg'
+            plt.savefig(plot_name, dpi=200)
+        else:
+            plt.show()
+        plt.close()
 
 
 if __name__ == "__main__":
@@ -472,7 +497,7 @@ if __name__ == "__main__":
         baseline_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                        plot_learning_curves=plot_parameters.plot_learning_curves,
                        exclude_diverging_runs=plot_parameters.exclude_diverging_runs,
-                       plot_weights=plot_parameters.plot_weights)
+                       plot_weights=plot_parameters.plot_weights, methods=plot_parameters.methods)
 
     # color_blind_palette = {
     #     'blue-ish': '#332288',   # I'm not good at naming colors
