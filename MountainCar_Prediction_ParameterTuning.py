@@ -119,17 +119,18 @@ class Experiment:
                 mse_per_checkpoint = np.zeros(self.num_transitions // self.checkpoint, dtype=np.float64)
                 curr_checkpoint = 0
 
-                # initial features and action
+                # load data
                 states, actions, rewards, terminations, avg_disc_return = self.load_data(seed_number=i)
-
+                """ Start of Training"""
                 curr_obs_feats = self.feature_function.get_observable_features(states[0])  # current observable features
-                for k in range(self.num_transitions):
+                k = 0
+                while k < self.num_transitions:
                     curr_a = actions[k]                                                 # current action
                     curr_av = approximators[curr_a].get_prediction(curr_obs_feats)      # current value
-                    next_s = states[k]              # next state
-                    next_r = rewards[k]              # next reward
-                    next_term = terminations[k]     # next termination
-                    next_a = actions[k+1]           # next action
+                    next_s = states[k+1]                # next state
+                    next_r = rewards[k+1]               # next reward
+                    next_term = terminations[k+1]       # next termination
+                    next_a = actions[k+1]               # next action
 
                     # get next observable features
                     next_obs_feats = self.feature_function.get_observable_features(next_s)
@@ -146,11 +147,18 @@ class Experiment:
                         mse_per_checkpoint[curr_checkpoint:] += 1000000
                         print("The weights diverged!")
                         break
-                    # update feature and action information, and keep track of progress
+
+                    # update feature information, checkpoint, and k, and keep track of progress
                     curr_obs_feats = next_obs_feats
                     mse_per_checkpoint[curr_checkpoint] += np.square(curr_av - avg_disc_return[k]) / self.checkpoint
-                    if (k + 1) % self.checkpoint == 0:
+                    k += 1
+                    if k % self.checkpoint == 0:
                         curr_checkpoint += 1
+
+                    # handle terminal states
+                    if next_term:
+                        k += 1
+                        curr_obs_feats = self.feature_function.get_observable_features(states[k])
 
                 if DEBUG:
                     import matplotlib.pyplot as plt
