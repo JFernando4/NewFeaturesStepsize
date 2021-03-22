@@ -61,7 +61,7 @@ class Experiment:
         # number of observable features at the start of training
         self.config.num_obs_features = self.config.initial_centers.shape[0]
         # max_num_features should be at least num_obs_features + num_new_features
-        self.config.max_num_features = self.config.num_obs_features + self.get_num_new_features() + 1
+        self.config.max_num_features = self.config.num_obs_features + self.get_num_new_features()
         self.epsilon = 0.1                  # reasonable choice in mountain car
         self.gamma = 0.99                   # discount factor
 
@@ -71,7 +71,7 @@ class Experiment:
             self.config.alpha = BEST_PARAMETER_VALUE[self.method]
             self.config.rescale = (self.method == 'rescaled_sgd')
         elif self.method in ['adam', 'restart_adam', 'slow_adam']:
-            self.config.beta1 = 0.9 if self.method == 'adam' else 0.0
+            self.config.beta1 = 0.9 if self.method in ['adam', 'restart_adam'] else 0.0
             self.config.beta2 = 0.99
             self.config.eps = 1e-08
             self.config.init_alpha = BEST_PARAMETER_VALUE[self.method]
