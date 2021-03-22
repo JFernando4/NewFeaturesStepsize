@@ -91,7 +91,7 @@ class Experiment:
             print(some_string)
 
     def setup_baseline(self, alpha_value):
-        if self.method == 'sgd':
+        if self.method == 'sgd' and self.baseline:
             self.config.alpha = alpha_value
 
     def run(self):
