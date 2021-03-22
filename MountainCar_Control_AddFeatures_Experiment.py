@@ -27,7 +27,7 @@ MIDPOINT = 100000               # number of iterations for first phase of traini
 ADD_FEATURE_INTERVAL = 1000     # number of iterations before adding another feature when 'continuously_add_bad'
 CHECKPOINT = 1000               # how often store the mean squared error
 STEPSIZE_GROWTH_FACTOR = 10     # how much to increase or decrease the stepsize for sgd
-DEBUG = False
+DEBUG = True
 
 
 class Experiment:
@@ -37,7 +37,7 @@ class Experiment:
         self.config = Config()
 
         self.experiment_type = exp_arguments.experiment_type
-        self.phased_training = (self.experiment_type == 'continuously_add_bad')
+        self.phased_training = (self.experiment_type != 'continuously_add_bad')
         self.sample_size = exp_arguments.sample_size
         self.verbose = exp_arguments.verbose
         self.results_path = results_path
@@ -209,7 +209,7 @@ class Experiment:
                 plt.show()
                 plt.close()
 
-        self.store_results(results_dir)
+        # self.store_results(results_dir)
 
     def get_alphas_and_names(self):
         # If not using SGD, we don't need to se the stepsize of new features manually
