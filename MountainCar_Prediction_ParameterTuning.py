@@ -219,17 +219,17 @@ if __name__ == '__main__':
 
     # for centers: np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)), dtype=np.float64) with N(0,0.01) noise
     # SGD parameter values: stepsize in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
-    #   - 0.05 completed the most episodes during the whole training period
+    #   - 0.04 had the lowest approximate MSE
     # Adam parameter values: initial stepsize in {0.5 0.4 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05}
-    #   - 0.2 completed the most episodes during the whole training period
+    #   - 0.2 had the lowest approximate MSE
     # Adam without momentum (called slow_adam in the code) values: initial stepsize in
     #   {0.5 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05 0.01}
-    #   - 0.1 completed the most episodes during the whole training period
-    # TIDBD parameter values: theta in {0.009 0.008 0.007 0.006 0.005 0.004 0.003 0.002 0.001 0.0009}
-    #   - 0.005 completed the most episodes during the whole training period
+    #   - 0.08 had the lowest approximate MSE
+    # TIDBD parameter values: theta in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.004}
+    #   -  0.02 had the lowest approximate MSE
     # AutoStep parameter values: mu in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.001}
-    #   - 0.02 completed the most episodes during the whole training period
+    #   - 0.02 had the lowest approximate MSE
     # Rescaled SGD parameter values: stepsize in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
-    #   - 0.02 completed the most episodes during the whole training period
-    # STIDBD parameter values: theta in {0.01 0.009 0.008 0.007 0.006 0.005 0.004 0.003 0.002 0.001}
-    #   - 0.01 completed the most episodes during the whole training period
+    #   - 0.05 had the lowest approximate MSE
+    # STIDBD parameter values: theta in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    #   - 0.06 had the lowest approximate MSE
