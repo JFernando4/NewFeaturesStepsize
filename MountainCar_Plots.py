@@ -149,12 +149,12 @@ def get_num_features(exp_type):
 
 
 def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights=False,
-              exp_names=('add_good_feats', ), extend_training=False):
+              exp_names=('add_good_feats', ), extended_training=False):
     assert NUM_SAMPLES % bin_size == 0
     downsample = 1000
     checkpoint = 1000
 
-    num_samples = NUM_SAMPLES if not extend_training else EXTENDED_NUM_SAMPLES
+    num_samples = NUM_SAMPLES if not extended_training else EXTENDED_NUM_SAMPLES
     lc_xaxis = np.arange(num_samples - bin_size + 1) + 1
     ws_xaxis = (np.arange(num_samples // checkpoint) + 1) * 1000
 
@@ -165,7 +165,7 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
         task_name = 'mountain_car_control_task_add_fake_features'
     else:
         task_name = 'mountain_car_control_task_add_features'
-    if extend_training:
+    if extended_training:
         task_name += '_extended_training'
 
     default_names = ['add_good_feats', 'add_bad_feats', 'continuously_add_bad']
@@ -186,7 +186,7 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
             plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                              color=sgd_lighter_colors[i])
 
-        if not extend_training:
+        if not extended_training:
             avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
                                                bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
                                                learning_curve_name='avg_learning_curve_bins' + str(bin_size) + '.p',
@@ -289,9 +289,10 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                            experiment_types=('add_good_feats',), methods=('adam',), extended_training=False):
     downsample = 1000
     num_actions = 3
-    lc_xaxis = np.arange(NUM_SAMPLES - bin_size + 1) + 1
+    num_samples = NUM_SAMPLES if not extended_training else EXTENDED_NUM_SAMPLES
+    lc_xaxis = np.arange(num_samples - bin_size + 1) + 1
     checkpoint = 1000
-    ws_xaxis = (np.arange(NUM_SAMPLES // checkpoint) + 1) * 1000
+    ws_xaxis = (np.arange(num_samples // checkpoint) + 1) * 1000
 
     # experiment_types = ['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
     #                     'add_5_good_100_bad', 'continuously_add_bad']
@@ -299,7 +300,8 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
         task_name = 'mountain_car_control_task_add_fake_features'
     else:
         task_name = 'mountain_car_control_task_add_features'
-        # experiment_names.append('add_good_feats')
+    if extended_training:
+        task_name += '_extended_training'
 
     results_dir = os.path.join(os.getcwd(), 'results', task_name)
 
@@ -321,16 +323,17 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                                  color=methods_lighter_colors[m])
 
-            avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
-                                               bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
-                                               learning_curve_name='avg_learning_curve_bins'+str(bin_size)+'.p',
-                                               num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
-                                               use_moving_sume=True)
+            if not extended_training:
+                avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
+                                                   bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
+                                                   learning_curve_name='avg_learning_curve_bins'+str(bin_size)+'.p',
+                                                   num_samples=NUM_SAMPLES, secondary_results_name='reward_per_step',
+                                                   use_moving_sume=True)
 
-            plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], label='rescaled_sgd',
-                     linestyle='dotted')
-            plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
-                             color=RESCALED_SGD_COLORS['lighter'])
+                plt.plot(lc_xaxis[::downsample], avg[::downsample], color=RESCALED_SGD_COLORS['solid'], label='rescaled_sgd',
+                         linestyle='dotted')
+                plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
+                                 color=RESCALED_SGD_COLORS['lighter'])
 
             plt.legend()
             plt.xlabel("Training Examples", fontsize=18)
@@ -494,7 +497,7 @@ if __name__ == "__main__":
     if plot_parameters.sgd_plots:
         sgd_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                   fake_features=plot_parameters.fake_features, plot_weights=plot_parameters.plot_weights,
-                  exp_names=plot_parameters.experiment_types, extend_training=plot_parameters.extended_training)
+                  exp_names=plot_parameters.experiment_types, extended_training=plot_parameters.extended_training)
 
     if plot_parameters.stepsize_methods_plots:
         stepsize_methods_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
@@ -505,7 +508,8 @@ if __name__ == "__main__":
                                exclude_diverging_runs=plot_parameters.exclude_diverging_runs,
                                agg_actions=plot_parameters.aggregate_actions,
                                experiment_types=plot_parameters.experiment_types,
-                               methods=plot_parameters.methods)
+                               methods=plot_parameters.methods,
+                               extended_training=plot_parameters.extended_training)
 
     if plot_parameters.plot_baselines:
         baseline_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
