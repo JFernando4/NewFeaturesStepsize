@@ -7,7 +7,7 @@ from src.util import Config, check_attribute
 
 
 def sigmoid_function(x: np.ndarray):
-    lim = 10
+    lim = 100
     sigmoid = np.zeros(x.size, dtype=np.float64)
     sigmoid[x > lim] = 1
     sigmoid[x < -lim] = 0
@@ -34,6 +34,8 @@ class SIDBD:
         self.theta = check_attribute(config, attr_name='theta', default_value=0.1, data_type=float)
 
         self.beta = np.ones(self.parameter_size) * self.init_beta
+        self.beta_max = 100
+        self.beta_min = -100
         self.h = np.zeros(self.parameter_size)
         self.lim = 10
 
@@ -41,8 +43,7 @@ class SIDBD:
         gradient = error * features
         change_in_beta = self.theta * gradient * self.h
         self.beta += change_in_beta
-        self.beta[self.beta > self.lim] = self.lim
-        self.beta[self.beta < -self.lim] = -self.lim
+        np.clip(self.beta, a_min=self.beta_min, a_max=self.beta_max, out=self.beta)
         new_stepsize = sigmoid_function(self.beta)
         new_weight_vector = weights + new_stepsize * gradient
 
