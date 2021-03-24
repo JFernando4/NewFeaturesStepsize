@@ -16,7 +16,7 @@ BEST_PARAMETER_VALUE = {
     'autostep': 0.02,       # found by sweeping over values in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.001}
     'rescaled_sgd': 0.05,   # found by sweeping over values in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
     'restart_adam': 0.2,    # same as adam
-    'sidbd': 0.06,          # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    'sidbd': 0.09,          # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
 }
 
 OPTIMIZER_DICT = {'sgd': SGD, 'adam': Adam, 'idbd': IDBD, 'autostep': AutoStep, 'rescaled_sgd': SGD,
