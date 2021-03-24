@@ -152,12 +152,12 @@ class Experiment:
                     curr_obs_feats = next_obs_feats
                     mse_per_checkpoint[curr_checkpoint] += np.square(curr_av - avg_disc_return[k]) / self.checkpoint
                     k += 1
-                    if k % self.checkpoint == 0:
-                        curr_checkpoint += 1
+                    if k % self.checkpoint == 0: curr_checkpoint += 1
 
                     # handle terminal states
                     if next_term and k < self.num_transitions:
                         k += 1      # skips terminal states
+                        if k % self.checkpoint == 0: curr_checkpoint += 1
                         curr_obs_feats = self.feature_function.get_observable_features(states[k])
 
                 if DEBUG:
