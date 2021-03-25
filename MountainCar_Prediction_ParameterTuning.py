@@ -21,6 +21,7 @@ class Experiment:
         self.sample_size = exp_arguments.sample_size
         self.num_transitions = 200000
         self.checkpoint = 1000
+        self.dense = exp_arguments.dense
         self.config = Config()
 
         self.data_path = os.path.join(os.getcwd(), 'mountain_car_prediction_data_30evaluations')
@@ -29,14 +30,14 @@ class Experiment:
         """ Feature Function Setup """
         self.config.state_dims = 2          # number of dimension in mountain car
         self.config.state_lims = np.array(((-1,1), (-1,1)), dtype=np.float64)   # state bounds in mountain car
-        self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)), dtype=np.float64)
-        # self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25),
-        #                                         (0.6,0), (-0.6,0), (0,0.6), (0,-0.6),
-        #                                         (0.8,0.8), (0.8,-0.8), (-0.8, -0.8), (-0.8, 0.8),
-        #                                         (1,0), (-1,0), (0,1), (0,-1)), dtype=np.float64)
+        if self.dense:
+            x = np.arange(-1,1.2, 2/10)
+            self.config.initial_centers = np.transpose([np.tile(x, len(x)), np.repeat(x, len(x))])
+        else:
+            self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)),dtype=np.float64)
         self.config.sigma = 0.5
         self.config.init_noise_mean = 0.0
-        self.config.init_noise_var = 0.01
+        self.config.init_noise_var = 0.01 if not self.dense else 0.0
         self.feature_function = RadialBasisFunction(self.config)    # stays constant regardless of the parameter value
 
         """ Environment and Policy Setup """
@@ -199,10 +200,12 @@ def main():
     parser.add_argument('-ssm', '--stepsize_method', action='store', default='sgd', type=str,
                         choices=['sgd', 'adam', 'slow_adam', 'idbd', 'autostep', 'rescaled_sgd', 'sidbd'])
     parser.add_argument('-tpv', '--tunable_parameter_values', action='store', nargs='+', type=float, required=True)
+    parser.add_argument('--dense', action='store_true', default=False)
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
 
     task_name = 'mountain_car_prediction_task'
+    if exp_parameters.dense: task_name += '_dense'
     results_path = os.path.join(os.getcwd(), 'results', 'parameter_tuning', task_name, exp_parameters.stepsize_method)
     os.makedirs(results_path, exist_ok=True)
 
@@ -233,3 +236,7 @@ if __name__ == '__main__':
     #   - 0.05 had the lowest approximate MSE
     # STIDBD parameter values: theta in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
     #   - 0.09 had the lowest approximate MSE
+
+    # for dense representation: 121 centers (x,y) where x,y take values in np.arange(-1,1.2, 2/10)
+    # SGD parameter values: stepsize in {0.05 0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005}
+    #
