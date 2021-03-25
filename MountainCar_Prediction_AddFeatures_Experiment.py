@@ -17,10 +17,11 @@ BEST_PARAMETER_VALUE = {
     'rescaled_sgd': 0.05,   # found by sweeping over values in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
     'restart_adam': 0.2,    # same as adam
     'sidbd': 0.09,          # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    'dense_baseline': 0.02, # found by sweeping over values in {}
 }
 
 OPTIMIZER_DICT = {'sgd': SGD, 'adam': Adam, 'idbd': IDBD, 'autostep': AutoStep, 'rescaled_sgd': SGD,
-                  'restart_adam': Adam, 'sidbd': SIDBD, 'slow_adam': Adam}
+                  'restart_adam': Adam, 'sidbd': SIDBD, 'slow_adam': Adam, 'dense_baseline': SGD}
 
 TRAINING_DATA_SIZE = 200000     # number of training examples per run
 MIDPOINT = 100000               # number of iterations for first phase of training
@@ -55,10 +56,17 @@ class Experiment:
         self.config.state_dims = 2                                              # dimensions in mountain car
         self.config.state_lims = np.array(((-1,1), (-1,1)), dtype=np.float64)   # state bounds in mountain car
         # centers for the Radial Basis Functions
-        self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)), dtype=np.float64)
+        if self.method == 'dense_baseline':
+            x = np.arange(-1,1.2, 2/10)
+            self.config.initial_centers = np.transpose([np.tile(x, len(x)), np.repeat(x, len(x))])
+        else:
+            self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)),dtype=np.float64)
         self.config.sigma = 0.5                 # width of each feature
         self.config.init_noise_mean = 0.0       # mean of the noise of each features
-        self.config.init_noise_var = 0.01 if not self.baseline else 0.0     # variance of the noise of each feature
+        if self.baseline or (self.method == 'dense_baseline'):  # variance of the noise of each feature
+            self.config.init_noise_var = 0.0
+        else:
+            self.config.init_noise_var = 0.01
 
         " Environment Setup "
         self.num_actions = 3                # number of actions in the mountain car environment
@@ -70,7 +78,7 @@ class Experiment:
 
         " Optimizer Setup "
         self.config.parameter_size = self.config.num_obs_features
-        if self.method in ['sgd', 'rescaled_sgd']:
+        if self.method in ['sgd', 'rescaled_sgd', 'dense_baseline']:
             self.config.alpha = BEST_PARAMETER_VALUE[self.method]
             self.config.rescale = (self.method == 'rescaled_sgd')
         elif self.method in ['adam', 'restart_adam', 'slow_adam']:
@@ -113,7 +121,7 @@ class Experiment:
             weight_sum_per_checkpoint = np.zeros((self.sample_size, self.num_transitions // CHECKPOINT,
                                                   self.num_actions, self.config.max_num_features), dtype=np.float64)
             # For keeping track of stepsizes
-            if self.method != 'sgd':
+            if self.method not in ['sgd', 'dense_baseline']:
                 stepsize_sum_per_checkpoint = np.zeros((self.sample_size, self.num_transitions // CHECKPOINT,
                                                         self.num_actions, self.config.max_num_features),
                                                        dtype=np.float64)
@@ -165,7 +173,7 @@ class Experiment:
                     avg_mse_per_checkpoint[i][curr_checkpoint] += np.square(curr_av - avg_disc_return[j]) / CHECKPOINT
                     action_counter[i][curr_checkpoint][curr_a] += np.int32(1)
                     weight_sum_per_checkpoint[i][curr_checkpoint][curr_a][:new_weights.size] += new_weights
-                    if self.method != 'sgd':
+                    if self.method not in ['sgd', 'dense_baseline']:
                         stepsize_sum_per_checkpoint[i][curr_checkpoint][curr_a][:ss.size] += ss
 
                     # increase iteration number and process checkpoints
@@ -186,7 +194,7 @@ class Experiment:
                                      'diverging_runs': diverging_runs,
                                      'action_counter': action_counter,
                                      'weight_sum_per_checkpoint': weight_sum_per_checkpoint}
-            if self.method != 'sgd':
+            if self.method not in ['sgd', 'dense_baseline']:
                 results_dir[names[a]]['stepsize_sum_per_checkpoint'] = stepsize_sum_per_checkpoint
 
             if DEBUG:
@@ -201,7 +209,8 @@ class Experiment:
 
     def get_alphas_and_names(self):
         # If not using SGD, we don't need to set the stepsize of new features manually
-        if self.method in ['adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd', 'slow_adam']:
+        if self.method in ['adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd', 'slow_adam',
+                           'dense_baseline']:
             alphas = ['']
             names = [self.method]
             return alphas, names
@@ -226,7 +235,7 @@ class Experiment:
 
     def add_features(self, feat_func: RadialBasisFunction, approximator_list, optimizer_list, alpha, iteration_number):
 
-        if self.baseline:
+        if self.baseline or (self.method == 'dense_baseline'):
             return False    # False indicates that no feature was added to the representation
 
         # Add features half way through training
@@ -325,7 +334,7 @@ def main():
                                  'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
                         choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd',
-                                 'slow_adam'])
+                                 'slow_adam', 'dense_baseline'])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('--baseline', action='store_true', default=False,
                         help='Add features after 100k steps and then trains for another 300k steps.')
