@@ -56,6 +56,7 @@ class RadialBasisFunction:
     def add_feature(self, k=1, noise_mean=None, noise_var=None, fake_feature=False):
         self.added_noisy_or_irrelevant_features = True
         new_relevant_features = np.ones(self.num_features + k, dtype=np.float64)
+        new_relevant_features[:self.num_features] = self.relevant_features
         if fake_feature:
             new_relevant_features[self.num_features:] *= 0.0
 
