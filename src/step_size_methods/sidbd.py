@@ -35,8 +35,8 @@ class SIDBD:
         self.parameter_size = check_attribute(config, attr_name='parameter_size', default_value=10, data_type=int)
         self.init_beta = check_attribute(config, attr_name='init_beta', default_value=np.log(0.001), data_type=float)
         self.theta = check_attribute(config, attr_name='theta', default_value=0.1, data_type=float)
-        self.expansion_handling = check_attribute(config, attr_name='increase_setting', default_value='keep',
-                                                  data_type=str, choices=['keep', 'reset', 'max'])
+        self.increase_setting = check_attribute(config, attr_name='increase_setting', default_value='keep',
+                                                data_type=str, choices=['keep', 'reset', 'max'])
 
         self.beta = np.ones(self.parameter_size) * self.init_beta
         self.beta_max = 100
@@ -61,17 +61,18 @@ class SIDBD:
         new_parameter_size = self.parameter_size + k
 
         new_betas = np.zeros(new_parameter_size)
-        if self.expansion_handling == 'keep':
+        if self.increase_setting == 'keep':
             # old betas remain the same, new betas are set to init_beta
             new_betas[:self.parameter_size] += self.beta
             new_betas[self.parameter_size:] += self.init_beta
-        elif self.expansion_handling == 'reset':
+        elif self.increase_setting == 'reset':
             # all betas are set to init_beta
             new_betas += self.init_beta
-        elif self.expansion_handling == 'max':
+        elif self.increase_setting == 'max':
             # new betas are set to max(beta_i, init_beta), new betas are set to init_beta
             new_betas[:self.parameter_size] += np.clip(self.beta, a_min=self.init_beta, a_max=None)
-        else: raise ValueError("Expansion handling can't be: {0}".format(self.expansion_handling))
+            new_betas[self.parameter_size:] += self.init_beta
+        else: raise ValueError("Expansion handling can't be: {0}".format(self.increase_setting))
 
         new_h = np.zeros(new_parameter_size)
 
