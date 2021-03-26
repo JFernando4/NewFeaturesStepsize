@@ -149,7 +149,7 @@ def get_num_features(exp_type):
 
 
 def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights=False,
-              exp_names=('add_good_feats', ), extended_training=False):
+              exp_names=('add_good_feats', ), extended_training=False, recompute=False):
     assert NUM_SAMPLES % bin_size == 0
     downsample = 1000
     checkpoint = 1000
@@ -211,12 +211,11 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
         plt.close()
 
         if plot_weights:
-
+            weights_ylim = (-80,40)
             for n in names:
                 _, avg_weights = load_stepsizes_and_weights(results_dirpath=results_dir, method_name='sgd',
-                                                            exp_type=exp_name, exclude_diverging=True, recompute=False,
-                                                            agg_actions=True, secondary_name=n)
-
+                                                            exp_type=exp_name, exclude_diverging=True,
+                                                            recompute=recompute, agg_actions=True, secondary_name=n)
                 num_features = get_num_features(exp_name)
                 current_features = 0
                 for j, nf in enumerate(num_features):
@@ -226,7 +225,11 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
                 plt.title('{1}, {0}, sgd'.format(n, exp_name))
                 plt.xlabel("Training Examples", fontsize=18)
                 plt.ylabel("Average Weight", fontsize=18, rotation=0, labelpad=70)
-                plt.vlines(x=MIDPOINT, ymin=-60, ymax=40, colors='#BD2A4E', linestyles='dashed')
+                plt.vlines(x=MIDPOINT, ymin=weights_ylim[0], ymax=weights_ylim[1], colors='#BD2A4E',linestyles='dashed')
+                xmin, xmax  = plt.gca().get_xlim()
+                plt.hlines(y=0, xmin=xmin, xmax=xmax, color='#6B6B6B', linestyles='dashed')
+                plt.xlim((xmin, xmax))
+                plt.ylim(weights_ylim)
                 if save_plots:
                     plt.savefig(n + "_weights_plot_" + exp_name + '_sgd' + '.svg', dpi=200)
                 else:
@@ -286,7 +289,8 @@ def sgd_plots(save_plots=False, fake_features=False, bin_size=1000, plot_weights
 
 def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_curves=False, plot_stepsizes=False,
                            plot_weights=False, bin_size=5, exclude_diverging_runs=False, agg_actions=False,
-                           experiment_types=('add_good_feats',), methods=('adam',), extended_training=False):
+                           experiment_types=('add_good_feats',), methods=('adam',), extended_training=False,
+                           recompute=False):
     downsample = 1000
     num_actions = 3
     num_samples = NUM_SAMPLES if not extended_training else EXTENDED_NUM_SAMPLES
@@ -323,7 +327,7 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 plt.fill_between(lc_xaxis[::downsample], (avg + ste)[::downsample], (avg - ste)[::downsample],
                                  color=methods_lighter_colors[m])
 
-            if not extended_training:
+            if not extended_training and False:
                 avg, ste = load_avg_learning_curve(results_dirpath=os.path.join(results_dir, 'rescaled_sgd', exp_name),
                                                    bin_size=bin_size, results_name='results.p', method_name='rescaled_sgd',
                                                    learning_curve_name='avg_learning_curve_bins'+str(bin_size)+'.p',
@@ -361,7 +365,7 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 avg_stepsizes, avg_weights = load_stepsizes_and_weights(results_dirpath=results_dir, method_name=m,
                                                                         exp_type=exp_name,
                                                                         exclude_diverging=exclude_diverging_runs,
-                                                                        agg_actions=agg_actions)
+                                                                        agg_actions=agg_actions, recompute=True)
 
                 num_features = get_num_features(exp_name)
                 current_features = 0
@@ -398,7 +402,7 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
                 avg_stepsizes, avg_weights = load_stepsizes_and_weights(results_dirpath=results_dir, method_name=m,
                                                                         exp_type=exp_name,
                                                                         exclude_diverging=exclude_diverging_runs,
-                                                                        agg_actions=agg_actions)
+                                                                        agg_actions=agg_actions, recompute=True)
                 num_features = get_num_features(exp_name)
                 current_features = 0
                 for j, nf in enumerate(num_features):
@@ -422,7 +426,7 @@ def stepsize_methods_plots(fake_features=False, save_plots=False, plot_learning_
 
 
 def baseline_plots(bin_size=1000, save_plots=False, plot_learning_curves=False, plot_weights=False,
-                   exclude_diverging_runs=False, methods=('adam',), extended_training=False):
+                   exclude_diverging_runs=False, methods=('adam',), extended_training=False, recompute=False):
 
     results_dir = os.path.join(os.getcwd(), 'results', 'mountain_car_control_baseline')
     ms_func = lambda a: moving_sum(a, bin_size)
@@ -491,13 +495,15 @@ if __name__ == "__main__":
                         default=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                  'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-etr', '--extended_training', action='store_true', default=False)
+    parser.add_argument('-rc', '--recompute', action='store_true', default=False)
     parser.add_argument('-m', '--methods', action='store', nargs='+', type=str, required=False, default='adam')
     plot_parameters = parser.parse_args()
 
     if plot_parameters.sgd_plots:
         sgd_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
                   fake_features=plot_parameters.fake_features, plot_weights=plot_parameters.plot_weights,
-                  exp_names=plot_parameters.experiment_types, extended_training=plot_parameters.extended_training)
+                  exp_names=plot_parameters.experiment_types, extended_training=plot_parameters.extended_training,
+                  recompute=plot_parameters.recompute)
 
     if plot_parameters.stepsize_methods_plots:
         stepsize_methods_plots(bin_size=plot_parameters.bin_size, save_plots=plot_parameters.save_plots,
