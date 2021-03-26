@@ -15,10 +15,20 @@ class IDBD:
         parameter_size          int             10                  size of the weight vector
         init_beta               float           log(0.001)          initial value of beta
         theta                   float           0.1                 meta-stepsize parameter
+        increase_setting        str             'keep'              specifies how to handle the old information of a
+                                                                    feature when adding new features:
+                                                                        keep: keeps the same stepsize info as before
+                                                                              adding a new feature
+                                                                        reset: resets the stepsize info to initial
+                                                                               settings
+                                                                        max: takes the max of the initial and current
+                                                                             stepsize
         """
         self.parameter_size = check_attribute(config, attr_name='parameter_size', default_value=10, data_type=int)
         self.init_beta = check_attribute(config, attr_name='init_beta', default_value=np.log(0.001), data_type=float)
         self.theta = check_attribute(config, attr_name='theta', default_value=0.1, data_type=float)
+        self.increase_setting = check_attribute(config, attr_name='increase_setting', default_value='keep',
+                                                data_type=str, choices=['keep', 'reset', 'max'])
 
         self.beta = np.ones(self.parameter_size) * self.init_beta
         self.beta_min = -100
@@ -40,11 +50,20 @@ class IDBD:
     def increase_size(self, k: int):
         new_parameter_size = self.parameter_size + k
         new_betas = np.zeros(new_parameter_size)
-        new_betas[:self.parameter_size] += self.beta
-        new_betas[self.parameter_size:] += self.init_beta
+        if self.increase_setting == 'keep':
+            # old betas remain the same, new betas are set to init_beta
+            new_betas[:self.parameter_size] += self.beta
+            new_betas[self.parameter_size:] += self.init_beta
+        elif self.increase_setting == 'reset':
+            # all betas are set to init_beta
+            new_betas += self.init_beta
+        elif self.increase_setting == 'max':
+            # new betas are set to max(beta_i, init_beta), new betas are set to init_beta
+            new_betas[:self.parameter_size] += np.clip(self.beta, a_min=self.init_beta, a_max=None)
+            new_betas[self.parameter_size:] += self.init_beta
+        else: raise ValueError("increase_setting can't be: {0}".format(self.increase_setting))
 
         new_h = np.zeros(new_parameter_size)
-        new_h[:self.parameter_size] += self.h
 
         self.parameter_size += k
         self.beta = new_betas
