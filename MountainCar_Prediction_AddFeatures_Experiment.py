@@ -358,7 +358,7 @@ def main():
                                  'keep_sidbd', 'reset_sidbd', 'max_sidbd',])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('--baseline', action='store_true', default=False,
-                        help='Add features after 100k steps and then trains for another 300k steps.')
+                        help='Baseline where the initial features do not have noise and new features are not added.')
     parser.add_argument('-v', '--verbose', action='store_true')
     exp_parameters = parser.parse_args()
 
