@@ -42,7 +42,6 @@ class SIDBD:
         self.beta_max = 100
         self.beta_min = -100
         self.h = np.zeros(self.parameter_size)
-        self.lim = 10
 
     def update_weight_vector(self, error, features, weights):
         gradient = error * features
