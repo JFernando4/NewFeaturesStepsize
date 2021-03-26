@@ -21,16 +21,14 @@ class IDBD:
         self.theta = check_attribute(config, attr_name='theta', default_value=0.1, data_type=float)
 
         self.beta = np.ones(self.parameter_size) * self.init_beta
+        self.beta_min = -100
         self.h = np.zeros(self.parameter_size)
 
     def update_weight_vector(self, error, features, weights):
         gradient = error * features
         change_in_beta = self.theta * gradient * self.h
-        # change_in_beta[change_in_beta > 1] = 1
-        # change_in_beta[change_in_beta < -1] = -1
         self.beta += change_in_beta
-        # self.beta[self.beta < -20] = -50
-        # self.beta[self.beta > 20] = 1
+        np.clip(self.beta, a_min=self.beta_min, a_max=None, out=self.beta)
         new_stepsize = np.exp(self.beta)
         new_weight_vector = weights + new_stepsize * gradient
 
