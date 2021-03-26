@@ -9,26 +9,31 @@ from src import Config, LinearFunctionApproximator, RadialBasisFunction
 from src import SGD, Adam, IDBD, AutoStep, SIDBD
 
 BEST_PARAMETER_VALUE = {
-    'sgd': 0.04,            # found by sweeping over values in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
-    'adam': 0.2,            # found by sweeping over values in {0.5 0.4 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05}
-    'slow_adam': 0.08,      # found by sweeping over values in {0.5 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05 0.01}
-    # found by sweeping over values in {0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.004 0.003 0.002}
+    # SGD: found by sweeping over values in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
+    'sgd': 0.04,
+    # Rescaled SGD: found by sweeping over values in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
+    'rescaled_sgd': 0.05,
+    # Adam: found by sweeping over values in {0.5 0.4 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05}
+    **dict.fromkeys(['keep_adam', 'reset_adam'], 0.2),
+    # Adam without Momentum: found by sweeping over values in {0.5 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05 0.01}
+    **dict.fromkeys(['keep_slow_adam', 'reset_slow_adam'], 0.08),
+    # IDBD: found by sweeping over values in {0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.004 0.003 0.002}
     **dict.fromkeys(['keep_idbd', 'reset_idbd', 'max_idbd'], 0.02),
-    'autostep': 0.02,       # found by sweeping over values in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.001}
-    'rescaled_sgd': 0.05,   # found by sweeping over values in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
-    'restart_adam': 0.2,    # same as adam
-    # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    # AutoStep: found by sweeping over values in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.001}
+    **dict.fromkeys(['keep_autostep', 'reset_autostep', 'max_autostep'], 0.02),
+    # SIDBD: found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
     **dict.fromkeys(['keep_sidbd', 'reset_sidbd', 'max_sidbd'], 0.09),
-    'dense_baseline': 0.02, # found by sweeping over values in {}
+    # Dense Baseline: found by sweeping over values in {0.05 0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005}
+    'dense_baseline': 0.02,
 }
 
 OPTIMIZER_DICT = {
     **dict.fromkeys(['sgd', 'rescaled_sgd', 'dense_baseline'], SGD),
-    **dict.fromkeys(['adam', 'restart_adam', 'slow_adam'], Adam),
+    **dict.fromkeys(['keep_adam', 'reset_adam', 'keep_slow_adam', 'reset_slow_adam'], Adam),
     **dict.fromkeys(['keep_sidbd', 'reset_sidbd', 'max_sidbd'], SIDBD),
     **dict.fromkeys(['keep_idbd', 'reset_idbd', 'max_idbd'], IDBD),
-    'autostep': AutoStep,
-                  }
+    **dict.fromkeys(['keep_autostep', 'reset_autostep', 'max_autostep'], AutoStep),
+}
 
 TRAINING_DATA_SIZE = 200000     # number of training examples per run
 MIDPOINT = 100000               # number of iterations for first phase of training
@@ -92,20 +97,21 @@ class Experiment:
         if self.method in ['sgd', 'rescaled_sgd', 'dense_baseline']:
             self.config.alpha = BEST_PARAMETER_VALUE[self.method]
             self.config.rescale = (self.method == 'rescaled_sgd')
-        elif self.method in ['adam', 'restart_adam', 'slow_adam']:
-            self.config.beta1 = 0.9 if self.method in ['adam', 'restart_adam'] else 0.0
+        elif self.method in ['keep_adam', 'reset_adam', 'keep_slow_adam', 'reset_slow_adam']:
+            self.config.beta1 = 0.9 if self.method in ['keep_adam', 'reset_adam', ] else 0.0
             self.config.beta2 = 0.99
             self.config.eps = 1e-08
             self.config.init_alpha = BEST_PARAMETER_VALUE[self.method]
-            self.config.restart_ma = (self.method == 'restart_adam')
+            self.config.increase_setting = self.method.split('_')[0]
         elif self.method in ['keep_idbd', 'reset_idbd', 'max_idbd', 'keep_sidbd', 'reset_sidbd', 'max_sidbd']:
             self.config.init_beta = np.log(0.001) if self.method == 'idbd' else -np.log((1/0.001) - 1)
             self.config.theta = BEST_PARAMETER_VALUE[self.method]
             self.config.increase_setting = self.method.split('_')[0]
-        elif self.method == 'autostep':
+        elif self.method in ['keep_autostep', 'reset_autostep', 'max_autostep']:
             self.config.tau = 10000.0
             self.config.init_stepsize = 0.001
             self.config.mu = BEST_PARAMETER_VALUE[self.method]
+            self.config.increase_setting = self.method.split('_')[0]
         else:
             raise ValueError("{0} is not a valid stepsize adaptation method.".format(exp_arguments.method))
 
@@ -344,10 +350,12 @@ def main():
                         choices=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                  'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
-                        choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam',
+                        choices=['sgd', 'rescaled_sgd', 'dense_baseline',
+                                 'keep_adam', 'reset_adam',
+                                 'keep_slow_adam', 'reset_slow_adam',
+                                 'keep_autostep', 'reset_autostep', 'max_autostep',
                                  'keep_idbd', 'reset_idbd', 'max_idbd',
-                                 'keep_sidbd', 'reset_sidbd', 'max_sidbd',
-                                 'slow_adam', 'dense_baseline'])
+                                 'keep_sidbd', 'reset_sidbd', 'max_sidbd',])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('--baseline', action='store_true', default=False,
                         help='Add features after 100k steps and then trains for another 300k steps.')
