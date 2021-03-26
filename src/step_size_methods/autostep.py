@@ -16,11 +16,21 @@ class AutoStep:
         mu                      float           0.01                value of mu in table 1
         tau                     float           10000               value of tau in table 1
         init_stepsize           float           0.001               initial stepsize value
+        increase_setting        str             'keep'              specifies how to handle the old information of a
+                                                                    feature when adding new features:
+                                                                        keep: keeps the same stepsize info as before
+                                                                              adding a new feature
+                                                                        reset: resets the stepsize info to initial
+                                                                               settings
+                                                                        max: takes the max of the initial and current
+                                                                             stepsize
         """
         self.parameter_size = check_attribute(config, attr_name='parameter_size', default_value=10, data_type=int)
         self.mu = check_attribute(config, attr_name='mu', default_value=0.01, data_type=float)
         self.tau = check_attribute(config, attr_name='tau', default_value=10000.0, data_type=float)
         self.init_stepsize = check_attribute(config, attr_name='init_stepsize', default_value=0.001, data_type=float)
+        self.increase_setting = check_attribute(config, attr_name='increase_setting', default_value='keep',
+                                                data_type=str, choices=['keep', 'reset', 'max'])
 
         self.stepsizes = np.ones(self.parameter_size) * self.init_stepsize
         self.v = np.zeros(self.parameter_size)
@@ -43,7 +53,7 @@ class AutoStep:
         if np.sum(v>0) > 0:                     # checks at least one term in v is positive, v is strictly positive
             self.stepsizes[v > 0] *= np.exp((self.mu * dxh)[v > 0] / v[v > 0])  # line 5 in Table 1
 
-        M = np.max((np.dot(self.stepsizes, squared_features), 1))            # line 6 in Table 1
+        M = np.max((np.dot(self.stepsizes, squared_features), 1))               # line 6 in Table 1
         self.stepsizes /= M                                                     # lin 7  in Table 1
         new_weights = weights + self.stepsizes * gradient
         self.h = self.h * (1 - self.stepsizes * squared_features) + self.stepsizes * gradient
@@ -54,14 +64,23 @@ class AutoStep:
 
         # increasing size of stepsizes
         new_stepsizes = np.zeros(new_parameter_size)
-        new_stepsizes[:self.parameter_size] += self.stepsizes
-        new_stepsizes[self.parameter_size:] += self.init_stepsize
+        if self.increase_setting == 'keep':
+            # old stepsizes remain the same, new stepsizes are set to init_stepsize
+            new_stepsizes[:self.parameter_size] += self.stepsizes
+            new_stepsizes[self.parameter_size:] += self.init_stepsize
+        elif self.increase_setting == 'reset':
+            # all stepsizes are set to init_stepsize
+            new_stepsizes += self.init_stepsize
+        elif self.increase_setting == 'max':
+            # new stepsizes are set to max(stepsize_i, init_stepsize), new stepsizes are set to init_stepsize
+            new_stepsizes[:self.parameter_size] += np.clip(self.stepsizes, a_min=self.init_stepsize, a_max=None)
+            new_stepsizes[self.parameter_size:] += self.init_stepsize
+        else: raise ValueError("increase_setting can't be: {0}".format(self.increase_setting))
+
         # increasing the size of v
         new_v = np.zeros(new_parameter_size)
-        new_v[:self.parameter_size] += self.v
         # increasing the size of h
         new_h = np.zeros(new_parameter_size)
-        new_h[:self.parameter_size] += self.h
 
         self.parameter_size += k
         self.stepsizes = new_stepsizes
