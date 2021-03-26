@@ -253,19 +253,3 @@ if __name__ == '__main__':
     #   - 0.01 completed the most episodes during the whole training period
     # STIDBD parameter values: theta in {0.05 0.04 0.035 0.03 0.025 0.02 0.015 0.01 0.007 0.005}
     #   - 0.02 completed the most episodes during the whole training period
-
-
-    # for centers: np.array(((0.0,0.0), (-1.8,0), (1.8,0), (0.0,-1.8), (0.0,1.8)), dtype=np.float64) and no noise
-    # SGD parameter values: stepsize in {0.65 0.6 0.55 0.5 0.45 0.4 0.35 0.3 0.25 0.2}
-    #   - 0.4 completed the most episodes during the whole training period
-    # TIDBD parameter values: theta in {0.00025 0.000225 0.0002 0.000175 0.00015 0.0001 0.00008 0.00006 0.00004 0.00002}
-    #   - every other meta-stepsize above 0.000175 diverged at least once in 50 runs
-    #   - 0.000175 completed the most episodes during the whole training period
-    # STIDBD parameter values: theta in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
-    #   - 0.02 completed the most episodes during the whole training period
-    # Adam parameter values: initial stepsize in {0.45 0.4 0.35 0.3 0.25 0.2 0.15 0.1 0.05 0.01}
-    #   - 0.1 completed the most episodes during the whole training period
-    # AutoStep parameter values: mu in {}
-    #   - completed the most episodes during the whole training period
-    # Rescaled SGD parameter values: stepsize in {0.45 0.4 0.35 0.3 0.25 0.2 0.15 0.1 0.05 0.01}
-    #   - 0.15 completed the most episodes during the whole training period
