@@ -16,15 +16,20 @@ class Adam:
         beta1                   float           0.9                 initial value of beta1
         beta2                   float           0.99                initial value of beta2
         eps                     float           1e-08               epsilon value to prevent division by zero
-        restart_ma              bool            False               whether to restart the moving averages every time
-                                                                    a new feature is added
+        increase_setting        str             'keep'              specifies how to handle the old information of a
+                                                                    feature when adding new features:
+                                                                        keep: keeps the same stepsize info as before
+                                                                              adding a new feature
+                                                                        reset: resets the stepsize info to initial
+                                                                               settings
         """
         self.parameter_size = check_attribute(config, attr_name='parameter_size', default_value=10, data_type=int)
         self.init_alpha = check_attribute(config, attr_name='init_alpha', default_value=0.001, data_type=float)
         self.beta1 = check_attribute(config, attr_name='beta1', default_value=0.9, data_type=float)
         self.beta2 = check_attribute(config, attr_name='beta2', default_value=0.99, data_type=float)
         self.eps = check_attribute(config, attr_name='eps', default_value=1e-08, data_type=float)
-        self.restart_ma = check_attribute(config, attr_name='restart_ma', default_value=False, data_type=bool)
+        self.increase_setting = check_attribute(config, attr_name='increase_setting', default_value='keep',
+                                                data_type=str, choices=['keep', 'reset'])
 
         self.stepsize = np.ones(self.parameter_size, dtype=np.float64) * self.init_alpha
         self.m = np.zeros(self.parameter_size)
@@ -49,12 +54,10 @@ class Adam:
         new_m = np.zeros(new_parameter_size)
         new_v = np.zeros(new_parameter_size)
         new_t = np.zeros(new_parameter_size)
-        if not self.restart_ma:
-            # update first moment vector
+        if self.increase_setting == 'keep':
+            # keep the information about the old features
             new_m[:self.parameter_size] += self.m
-            # update second moment vector
             new_v[:self.parameter_size] += self.v
-            # update time vector
             new_t[:self.parameter_size] += self.t
 
         self.parameter_size += k
