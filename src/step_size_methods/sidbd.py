@@ -1,5 +1,6 @@
 """
 Implementation of IDBD as of this paper: https://www.aaai.org/Papers/AAAI/1992/AAAI92-027.pdf
+    - Modification: the parameterization of the stepsize now follows a sigmoid function instead of exponential
 """
 
 import numpy as np
@@ -71,7 +72,7 @@ class SIDBD:
             # new betas are set to max(beta_i, init_beta), new betas are set to init_beta
             new_betas[:self.parameter_size] += np.clip(self.beta, a_min=self.init_beta, a_max=None)
             new_betas[self.parameter_size:] += self.init_beta
-        else: raise ValueError("Expansion handling can't be: {0}".format(self.increase_setting))
+        else: raise ValueError("increase_setting can't be: {0}".format(self.increase_setting))
 
         new_h = np.zeros(new_parameter_size)
 
