@@ -12,16 +12,23 @@ BEST_PARAMETER_VALUE = {
     'sgd': 0.04,            # found by sweeping over values in {0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01}
     'adam': 0.2,            # found by sweeping over values in {0.5 0.4 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05}
     'slow_adam': 0.08,      # found by sweeping over values in {0.5 0.3 0.2 0.1 0.09 0.08 0.07 0.06 0.05 0.01}
-    'idbd': 0.02,           # found by sweeping over values in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.004}
+    # found by sweeping over values in {0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.004 0.003 0.002}
+    **dict.fromkeys(['keep_idbd', 'reset_idbd', 'max_idbd'], 0.02),
     'autostep': 0.02,       # found by sweeping over values in {0.04 0.03 0.02 0.01 0.009 0.008 0.007 0.006 0.005 0.001}
     'rescaled_sgd': 0.05,   # found by sweeping over values in {0.5 0.1 0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.01}
     'restart_adam': 0.2,    # same as adam
-    'sidbd': 0.09,          # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    # found by sweeping over values in {0.09 0.08 0.07 0.06 0.05 0.04 0.03 0.02 0.01 0.009}
+    **dict.fromkeys(['keep_sidbd', 'reset_sidbd', 'max_sidbd'], 0.09),
     'dense_baseline': 0.02, # found by sweeping over values in {}
 }
 
-OPTIMIZER_DICT = {'sgd': SGD, 'adam': Adam, 'idbd': IDBD, 'autostep': AutoStep, 'rescaled_sgd': SGD,
-                  'restart_adam': Adam, 'sidbd': SIDBD, 'slow_adam': Adam, 'dense_baseline': SGD}
+OPTIMIZER_DICT = {
+    **dict.fromkeys(['sgd', 'rescaled_sgd', 'dense_baseline'], SGD),
+    **dict.fromkeys(['adam', 'restart_adam', 'slow_adam'], Adam),
+    **dict.fromkeys(['keep_sidbd', 'reset_sidbd', 'max_sidbd'], SIDBD),
+    **dict.fromkeys(['keep_idbd', 'reset_idbd', 'max_idbd'], IDBD),
+    'autostep': AutoStep,
+                  }
 
 TRAINING_DATA_SIZE = 200000     # number of training examples per run
 MIDPOINT = 100000               # number of iterations for first phase of training
@@ -55,12 +62,16 @@ class Experiment:
         " Feature Function Setup "
         self.config.state_dims = 2                                              # dimensions in mountain car
         self.config.state_lims = np.array(((-1,1), (-1,1)), dtype=np.float64)   # state bounds in mountain car
+
         # centers for the Radial Basis Functions
         if self.method == 'dense_baseline':
+            # 121 centers distributed evenly across the state space
             x = np.arange(-1,1.2, 2/10)
             self.config.initial_centers = np.transpose([np.tile(x, len(x)), np.repeat(x, len(x))])
         else:
+            # 5 centers distributed evenly around (0,0)
             self.config.initial_centers = np.array(((0,0),(.25,.25),(.25,-.25),(-.25,-.25),(-.25,.25)),dtype=np.float64)
+
         self.config.sigma = 0.5                 # width of each feature
         self.config.init_noise_mean = 0.0       # mean of the noise of each features
         if self.baseline or (self.method == 'dense_baseline'):  # variance of the noise of each feature
@@ -87,9 +98,10 @@ class Experiment:
             self.config.eps = 1e-08
             self.config.init_alpha = BEST_PARAMETER_VALUE[self.method]
             self.config.restart_ma = (self.method == 'restart_adam')
-        elif self.method in ['idbd', 'sidbd']:
+        elif self.method in ['keep_idbd', 'reset_idbd', 'max_idbd', 'keep_sidbd', 'reset_sidbd', 'max_sidbd']:
             self.config.init_beta = np.log(0.001) if self.method == 'idbd' else -np.log((1/0.001) - 1)
             self.config.theta = BEST_PARAMETER_VALUE[self.method]
+            self.config.increase_setting = self.method.split('_')[0]
         elif self.method == 'autostep':
             self.config.tau = 10000.0
             self.config.init_stepsize = 0.001
@@ -209,8 +221,7 @@ class Experiment:
 
     def get_alphas_and_names(self):
         # If not using SGD, we don't need to set the stepsize of new features manually
-        if self.method in ['adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd', 'slow_adam',
-                           'dense_baseline']:
+        if self.method != 'sgd':
             alphas = ['']
             names = [self.method]
             return alphas, names
@@ -333,7 +344,9 @@ def main():
                         choices=['add_good_feats', 'add_bad_feats', 'add_5_good_5_bad', 'add_5_good_20_bad',
                                  'add_5_good_100_bad', 'continuously_add_bad'])
     parser.add_argument('-m', '--method', action='store', default='sgd', type=str,
-                        choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam', 'sidbd',
+                        choices=['sgd', 'adam', 'idbd', 'autostep', 'rescaled_sgd', 'restart_adam',
+                                 'keep_idbd', 'reset_idbd', 'max_idbd',
+                                 'keep_sidbd', 'reset_sidbd', 'max_sidbd',
                                  'slow_adam', 'dense_baseline'])
     parser.add_argument('-aff', '--add_fake_features', action='store_true', default=False)
     parser.add_argument('--baseline', action='store_true', default=False,
